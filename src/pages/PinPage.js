@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const API_URL = 'https://backend-ponto-digital-2.onrender.com';
+const API_URL = '/api/proxy';
+
 
 export default function PinPage() {
   const [pin, setPin] = useState('');
@@ -32,30 +33,42 @@ export default function PinPage() {
   }), []);
 
   // Buscar dados do back-end
-  const buscarDadosBackend = async () => {
-    try {
-      // Buscar funcionários
-      const responseFunc = await fetch(`${API_URL}/funcionarios`);
-      if (responseFunc.ok) {
-        const data = await responseFunc.json();
-        setFuncionarios(data);
-      }
-
-      // Buscar registros
-      const responseReg = await fetch(`${API_URL}/registros`);
-      if (responseReg.ok) {
-        const data = await responseReg.json();
-        setRegistros(data);
-      }
-    } catch (error) {
-      console.error('Erro ao buscar dados do back-end:', error);
+ const buscarDadosBackend = async () => {
+  try {
+    // Buscar funcionários
+    const responseFunc = await fetch(`${API_URL}/funcionarios`);
+    const funcData = await responseFunc.json();
+    
+    if (funcData.success === false) {
+      console.warn('Backend offline, usando localStorage');
       // Fallback para localStorage
       const funcionariosSalvos = JSON.parse(localStorage.getItem('funcionarios') || '[]');
-      const registrosSalvos = JSON.parse(localStorage.getItem('registros') || '[]');
       setFuncionarios(funcionariosSalvos);
-      setRegistros(registrosSalvos);
+    } else {
+      setFuncionarios(funcData.data || funcData);
     }
-  };
+
+    // Buscar registros
+    const responseReg = await fetch(`${API_URL}/registros`);
+    const regData = await responseReg.json();
+    
+    if (regData.success === false) {
+      console.warn('Backend offline, usando localStorage para registros');
+      const registrosSalvos = JSON.parse(localStorage.getItem('registros') || '[]');
+      setRegistros(registrosSalvos);
+    } else {
+      setRegistros(regData.data || regData);
+    }
+    
+  } catch (error) {
+    console.error('Erro completo ao buscar dados:', error);
+    // Fallback completo para localStorage
+    const funcionariosSalvos = JSON.parse(localStorage.getItem('funcionarios') || '[]');
+    const registrosSalvos = JSON.parse(localStorage.getItem('registros') || '[]');
+    setFuncionarios(funcionariosSalvos);
+    setRegistros(registrosSalvos);
+  }
+};
 
   useEffect(() => {
     const atualizarHora = () => setHoraAtual(new Date().toLocaleTimeString('pt-BR'));
