@@ -1,6 +1,7 @@
-// import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+const API_URL = 'https://backend-ponto-digital-2.onrender.com';
 
 export default function PinPage() {
   const [pin, setPin] = useState('');
@@ -14,7 +15,7 @@ export default function PinPage() {
   const [mostrarTipo, setMostrarTipo] = useState(false);
   const [funcionarioAtual, setFuncionarioAtual] = useState(null);
 
-  //  PRELOADER
+  // PRELOADER
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 3000);
@@ -29,6 +30,32 @@ export default function PinPage() {
     61: '🌧️', 63: '🌧️', 65: '🌧️', 66: '🌨️', 67: '🌨️',
     71: '🌨️', 73: '🌨️', 75: '❄️', 80: '🌧️', 81: '🌧️', 82: '🌧️'
   }), []);
+
+  // Buscar dados do back-end
+  const buscarDadosBackend = async () => {
+    try {
+      // Buscar funcionários
+      const responseFunc = await fetch(`${API_URL}/funcionarios`);
+      if (responseFunc.ok) {
+        const data = await responseFunc.json();
+        setFuncionarios(data);
+      }
+
+      // Buscar registros
+      const responseReg = await fetch(`${API_URL}/registros`);
+      if (responseReg.ok) {
+        const data = await responseReg.json();
+        setRegistros(data);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar dados do back-end:', error);
+      // Fallback para localStorage
+      const funcionariosSalvos = JSON.parse(localStorage.getItem('funcionarios') || '[]');
+      const registrosSalvos = JSON.parse(localStorage.getItem('registros') || '[]');
+      setFuncionarios(funcionariosSalvos);
+      setRegistros(registrosSalvos);
+    }
+  };
 
   useEffect(() => {
     const atualizarHora = () => setHoraAtual(new Date().toLocaleTimeString('pt-BR'));
@@ -47,11 +74,7 @@ export default function PinPage() {
     atualizarHora();
     const id = setInterval(atualizarHora, 1000);
     buscarPrevisaoTempo();
-
-    const registrosSalvos = JSON.parse(localStorage.getItem('registros') || '[]');
-    const funcionariosSalvos = JSON.parse(localStorage.getItem('funcionarios') || '[]');
-    setRegistros(registrosSalvos);
-    setFuncionarios(funcionariosSalvos);
+    buscarDadosBackend();
 
     return () => clearInterval(id);
   }, [weatherIcons]);
@@ -77,7 +100,7 @@ export default function PinPage() {
     setMostrarTipo(true);
   };
 
-  const registrarPonto = (tipo) => {
+  const registrarPonto = async (tipo) => {
     if (!funcionarioAtual) return;
 
     const agora = new Date();
@@ -92,36 +115,66 @@ export default function PinPage() {
       tipo,
     };
 
-    const novosRegistros = [...registros, novoRegistro];
-    setRegistros(novosRegistros);
-    localStorage.setItem('registros', JSON.stringify(novosRegistros));
+    try {
+      // Enviar para o back-end
+      const response = await fetch(`${API_URL}/registros`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(novoRegistro)
+      });
 
-    let msg = '';
-    switch (tipo) {
-      case 'entrada':
-        msg = `Bom trabalho, ${funcionarioAtual.nome}!`;
-        break;
-      case 'saida':
-        msg = `Até logo, ${funcionarioAtual.nome}!`;
-        break;
-      case 'intervalo ida':
-        msg = `Bom intervalo, ${funcionarioAtual.nome}!`;
-        break;
-      case 'intervalo volta':
-        msg = `Bem-vindo de volta, ${funcionarioAtual.nome}!`;
-        break;
-      default:
-        msg = `Registro realizado.`;
+      if (response.ok) {
+        const registroCriado = await response.json();
+        const novosRegistros = [...registros, registroCriado];
+        setRegistros(novosRegistros);
+        localStorage.setItem('registros', JSON.stringify(novosRegistros));
+
+        let msg = '';
+        switch (tipo) {
+          case 'entrada':
+            msg = `Bom trabalho, ${funcionarioAtual.nome}!`;
+            break;
+          case 'saida':
+            msg = `Até logo, ${funcionarioAtual.nome}!`;
+            break;
+          case 'intervalo ida':
+            msg = `Bom intervalo, ${funcionarioAtual.nome}!`;
+            break;
+          case 'intervalo volta':
+            msg = `Bem-vindo de volta, ${funcionarioAtual.nome}!`;
+            break;
+          default:
+            msg = `Registro realizado.`;
+        }
+
+        setMensagem(msg);
+        falarTexto(tipo);
+        playConfirmationSound();
+        setPin('');
+        setFuncionarioAtual(null);
+        setMostrarTipo(false);
+        setBloqueado(true);
+        setTimeout(() => setBloqueado(false), 2000);
+      }
+    } catch (error) {
+      console.error('Erro ao salvar registro no servidor:', error);
+      // Fallback para localStorage
+      const novosRegistros = [...registros, novoRegistro];
+      setRegistros(novosRegistros);
+      localStorage.setItem('registros', JSON.stringify(novosRegistros));
+
+      let msg = `Registro local salvo (sem conexão com servidor) - ${funcionarioAtual.nome}`;
+      setMensagem(msg);
+      falarTexto(tipo);
+      playConfirmationSound();
+      setPin('');
+      setFuncionarioAtual(null);
+      setMostrarTipo(false);
+      setBloqueado(true);
+      setTimeout(() => setBloqueado(false), 2000);
     }
-
-    setMensagem(msg);
-    falarTexto(tipo);
-    playConfirmationSound();
-    setPin('');
-    setFuncionarioAtual(null);
-    setMostrarTipo(false);
-    setBloqueado(true);
-    setTimeout(() => setBloqueado(false), 2000);
   };
 
   const falarTexto = (tipo) => {
@@ -162,129 +215,127 @@ export default function PinPage() {
   const teclas = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'OK'];
 
   // Preloader modernizado com 3 segundos de animação
- if (loading) {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-700 to-blue-900 relative overflow-hidden">
-      {/* Efeito de partículas animadas */}
-      <div className="absolute inset-0">
-        {[...Array(15)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute rounded-full bg-white/20 animate-float"
-            style={{
-              width: `${Math.random() * 30 + 10}px`,
-              height: `${Math.random() * 30 + 10}px`,
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 2}s`,
-              animationDuration: `${Math.random() * 3 + 2}s`
-            }}
-          />
-        ))}
-      </div>
-
-      <div className="flex flex-col items-center z-10">
-        {/* Logo com múltiplas animações */}
-        <div className="relative">
-          <img
-            src="/logo.png"
-            alt="Logo Cristal Acquacenter"
-            className="w-48 h-48 object-contain animate-logo-glow"
-          />
-          <div className="absolute inset-0 w-48 h-48 bg-blue-400/30 rounded-full animate-ping-slow" />
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-700 to-blue-900 relative overflow-hidden">
+        {/* Efeito de partículas animadas */}
+        <div className="absolute inset-0">
+          {[...Array(15)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute rounded-full bg-white/20 animate-float"
+              style={{
+                width: `${Math.random() * 30 + 10}px`,
+                height: `${Math.random() * 30 + 10}px`,
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 2}s`,
+                animationDuration: `${Math.random() * 3 + 2}s`
+              }}
+            />
+          ))}
         </div>
 
-        {/* Loading text com efeito de digitação - CENTRALIZADO */}
-        <div className="mt-8 text-center w-full max-w-md mx-auto">
-          <p className="text-white text-xl font-semibold mb-4 animate-typewriter">
-            O sistema de ponto está carregando...
-          </p>
-          
-          {/* Barra de progresso moderna - CENTRALIZADA */}
-          <div className="flex justify-center">
-            <div className="w-64 h-2 bg-white/30 rounded-full overflow-hidden">
-              <div className="h-full bg-white animate-progress-bar" />
+        <div className="flex flex-col items-center z-10">
+          {/* Logo com múltiplas animações */}
+          <div className="relative">
+            <img
+              src="/logo.png"
+              alt="Logo Cristal Acquacenter"
+              className="w-48 h-48 object-contain animate-logo-glow"
+            />
+            <div className="absolute inset-0 w-48 h-48 bg-blue-400/30 rounded-full animate-ping-slow" />
+          </div>
+
+          {/* Loading text com efeito de digitação - CENTRALIZADO */}
+          <div className="mt-8 text-center w-full max-w-md mx-auto">
+            <p className="text-white text-xl font-semibold mb-4 animate-typewriter">
+              O sistema de ponto está carregando...
+            </p>
+            
+            {/* Barra de progresso moderna - CENTRALIZADA */}
+            <div className="flex justify-center">
+              <div className="w-64 h-2 bg-white/30 rounded-full overflow-hidden">
+                <div className="h-full bg-white animate-progress-bar" />
+              </div>
             </div>
+          </div>
+
+          {/* Loading dots animados - CENTRALIZADOS */}
+          <div className="flex justify-center space-x-2 mt-6">
+            <div className="w-3 h-3 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+            <div className="w-3 h-3 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+            <div className="w-3 h-3 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
           </div>
         </div>
 
-        {/* Loading dots animados - CENTRALIZADOS */}
-        <div className="flex justify-center space-x-2 mt-6">
-          <div className="w-3 h-3 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-          <div className="w-3 h-3 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-          <div className="w-3 h-3 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
-        </div>
+        {/* ANIMAÇÕES CSS */}
+        <style>
+          {`
+            @keyframes logoGlow {
+              0%, 100% { 
+                transform: scale(1) rotate(0deg);
+                filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));
+              }
+              50% { 
+                transform: scale(1.05) rotate(2deg);
+                filter: drop-shadow(0 0 20px rgba(255,255,255,0.8));
+              }
+            }
+
+            @keyframes typewriter {
+              from { width: 0; }
+              to { width: 100%; }
+            }
+
+            @keyframes progressBar {
+              0% { transform: translateX(-100%); }
+              50% { transform: translateX(0%); }
+              100% { transform: translateX(100%); }
+            }
+
+            @keyframes float {
+              0%, 100% { transform: translateY(0px) rotate(0deg); }
+              50% { transform: translateY(-20px) rotate(180deg); }
+            }
+
+            @keyframes pingSlow {
+              0% { transform: scale(1); opacity: 1; }
+              100% { transform: scale(2); opacity: 0; }
+            }
+
+            .animate-logo-glow {
+              animation: logoGlow 2s ease-in-out infinite;
+            }
+
+            .animate-typewriter {
+              overflow: hidden;
+              white-space: nowrap;
+              border-right: 2px solid white;
+              animation: typewriter 2s steps(40) 0.5s both,
+                         blink-caret 0.75s step-end infinite;
+            }
+
+            .animate-progress-bar {
+              animation: progressBar 6s ease-in-out infinite;
+            }
+
+            .animate-float {
+              animation: float linear infinite;
+            }
+
+            .animate-ping-slow {
+              animation: pingSlow 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+            }
+
+            @keyframes blink-caret {
+              from, to { border-color: transparent }
+              50% { border-color: white }
+            }
+          `}
+        </style>
       </div>
-
-      {/* ANIMAÇÕES CSS */}
-      <style>
-        {`
-          @keyframes logoGlow {
-            0%, 100% { 
-              transform: scale(1) rotate(0deg);
-              filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));
-            }
-            50% { 
-              transform: scale(1.05) rotate(2deg);
-              filter: drop-shadow(0 0 20px rgba(255,255,255,0.8));
-            }
-          }
-
-          @keyframes typewriter {
-            from { width: 0; }
-            to { width: 100%; }
-          }
-
-          @keyframes progressBar {
-            0% { transform: translateX(-100%); }
-            50% { transform: translateX(0%); }
-            100% { transform: translateX(100%); }
-          }
-
-          @keyframes float {
-            0%, 100% { transform: translateY(0px) rotate(0deg); }
-            50% { transform: translateY(-20px) rotate(180deg); }
-          }
-
-          @keyframes pingSlow {
-            0% { transform: scale(1); opacity: 1; }
-            100% { transform: scale(2); opacity: 0; }
-          }
-
-          .animate-logo-glow {
-            animation: logoGlow 2s ease-in-out infinite;
-          }
-
-          .animate-typewriter {
-            overflow: hidden;
-            white-space: nowrap;
-            border-right: 2px solid white;
-            animation: typewriter 2s steps(40) 0.5s both,
-                       blink-caret 0.75s step-end infinite;
-          }
-
-          .animate-progress-bar {
-            animation: progressBar 6s ease-in-out infinite;
-          }
-
-          .animate-float {
-            animation: float linear infinite;
-          }
-
-          .animate-ping-slow {
-            animation: pingSlow 2s cubic-bezier(0, 0, 0.2, 1) infinite;
-          }
-
-          @keyframes blink-caret {
-            from, to { border-color: transparent }
-            50% { border-color: white }
-          }
-        `}
-      </style>
-    </div>
-  );
-}
-    if (loading) {;
+    );
   }
 
   return (

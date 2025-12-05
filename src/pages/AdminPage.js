@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react'; 
 import { useNavigate } from 'react-router-dom';
 
+const API_URL = 'https://backend-ponto-digital-2.onrender.com';
+
 export default function AdminPage() {
   const [registros, setRegistros] = useState([]);
   const [todosRegistros, setTodosRegistros] = useState([]);
@@ -22,19 +24,48 @@ export default function AdminPage() {
   });
 
   const [ordenacao, setOrdenacao] = useState({ campo: '', direcao: 'asc' });
+  const [carregando, setCarregando] = useState(false);
 
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const localRegistros = localStorage.getItem('registros');
-    const localFuncionarios = localStorage.getItem('funcionarios');
-    if (localRegistros) {
-      const data = JSON.parse(localRegistros);
-      data.sort(multiSort); // usa ordenação multi-colunas
-      setTodosRegistros(data);
-      setRegistros(data);
+  // Buscar dados do back-end
+  const buscarDadosBackend = async () => {
+    setCarregando(true);
+    try {
+      // Buscar registros
+      const responseRegistros = await fetch(`${API_URL}/registros`);
+      if (responseRegistros.ok) {
+        const data = await responseRegistros.json();
+        data.sort(multiSort);
+        setTodosRegistros(data);
+        setRegistros(data);
+      }
+
+      // Buscar funcionários
+      const responseFuncionarios = await fetch(`${API_URL}/funcionarios`);
+      if (responseFuncionarios.ok) {
+        const data = await responseFuncionarios.json();
+        setFuncionarios(data);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar dados do back-end:', error);
+      // Fallback para localStorage se o back-end falhar
+      const localRegistros = localStorage.getItem('registros');
+      const localFuncionarios = localStorage.getItem('funcionarios');
+      if (localRegistros) {
+        const data = JSON.parse(localRegistros);
+        data.sort(multiSort);
+        setTodosRegistros(data);
+        setRegistros(data);
+      }
+      if (localFuncionarios) setFuncionarios(JSON.parse(localFuncionarios));
+    } finally {
+      setCarregando(false);
     }
-    if (localFuncionarios) setFuncionarios(JSON.parse(localFuncionarios));
+  };
+
+  useEffect(() => {
+    buscarDadosBackend();
   }, []);
 
   const handleBuscar = () => {
@@ -64,15 +95,36 @@ export default function AdminPage() {
     setPaginaAtual(1);
   };
 
-  const adicionarFuncionario = () => {
+  const adicionarFuncionario = async () => {
     if (!novoFuncionario.nome || !novoFuncionario.pin) return;
-    const atualizados = [...funcionarios, novoFuncionario];
-    setFuncionarios(atualizados);
-    localStorage.setItem('funcionarios', JSON.stringify(atualizados));
-    setNovoFuncionario({ nome: '', pin: '' });
+    
+    try {
+      const response = await fetch(`${API_URL}/funcionarios`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(novoFuncionario)
+      });
+
+      if (response.ok) {
+        const funcionarioCriado = await response.json();
+        const atualizados = [...funcionarios, funcionarioCriado];
+        setFuncionarios(atualizados);
+        localStorage.setItem('funcionarios', JSON.stringify(atualizados));
+        setNovoFuncionario({ nome: '', pin: '' });
+      }
+    } catch (error) {
+      console.error('Erro ao adicionar funcionário:', error);
+      // Fallback para localStorage
+      const atualizados = [...funcionarios, novoFuncionario];
+      setFuncionarios(atualizados);
+      localStorage.setItem('funcionarios', JSON.stringify(atualizados));
+      setNovoFuncionario({ nome: '', pin: '' });
+    }
   };
 
-  const adicionarRegistro = () => {
+  const adicionarRegistro = async () => {
     if (
       !novoRegistro.data ||
       !novoRegistro.horario ||
@@ -81,84 +133,211 @@ export default function AdminPage() {
       !novoRegistro.pin
     ) return;
 
-    const novo = { ...novoRegistro };
-    const atualizados = [novo, ...todosRegistros];
-    atualizados.sort(multiSort);
-    setTodosRegistros(atualizados);
-    setRegistros(atualizados);
-    localStorage.setItem('registros', JSON.stringify(atualizados));
-    setNovoRegistro({ data: '', horario: '', nome: '', tipo: '', pin: '' });
+    try {
+      const response = await fetch(`${API_URL}/registros`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(novoRegistro)
+      });
+
+      if (response.ok) {
+        const registroCriado = await response.json();
+        const novo = { ...registroCriado };
+        const atualizados = [novo, ...todosRegistros];
+        atualizados.sort(multiSort);
+        setTodosRegistros(atualizados);
+        setRegistros(atualizados);
+        localStorage.setItem('registros', JSON.stringify(atualizados));
+        setNovoRegistro({ data: '', horario: '', nome: '', tipo: '', pin: '' });
+      }
+    } catch (error) {
+      console.error('Erro ao adicionar registro:', error);
+      // Fallback para localStorage
+      const novo = { ...novoRegistro };
+      const atualizados = [novo, ...todosRegistros];
+      atualizados.sort(multiSort);
+      setTodosRegistros(atualizados);
+      setRegistros(atualizados);
+      localStorage.setItem('registros', JSON.stringify(atualizados));
+      setNovoRegistro({ data: '', horario: '', nome: '', tipo: '', pin: '' });
+    }
   };
 
-  const editarFuncionario = (index) => {
+  const editarFuncionario = async (index) => {
     const atual = funcionarios[index];
     const nomeAntigo = atual.nome;
     const pinAntigo = atual.pin;
     const nome = prompt('Editar nome:', atual.nome);
     const pin = prompt('Editar PIN:', atual.pin);
+    
     if (nome && pin) {
-      const atualizados = [...funcionarios];
-      atualizados[index] = { nome, pin };
-      setFuncionarios(atualizados);
-      localStorage.setItem('funcionarios', JSON.stringify(atualizados));
+      try {
+        const response = await fetch(`${API_URL}/funcionarios/${atual.id || atual._id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ nome, pin })
+        });
 
-      const registrosAtualizados = todosRegistros.map(r => {
-        if (r.pin === pinAntigo) return { ...r, nome, pin };
-        return r;
-      }).sort(multiSort);
+        if (response.ok) {
+          const funcionarioAtualizado = await response.json();
+          const atualizados = [...funcionarios];
+          atualizados[index] = funcionarioAtualizado;
+          setFuncionarios(atualizados);
+          localStorage.setItem('funcionarios', JSON.stringify(atualizados));
 
-      setTodosRegistros(registrosAtualizados);
-      setRegistros(registrosAtualizados);
-      localStorage.setItem('registros', JSON.stringify(registrosAtualizados));
-    }
-  };
+          const registrosAtualizados = todosRegistros.map(r => {
+            if (r.pin === pinAntigo) return { ...r, nome, pin };
+            return r;
+          }).sort(multiSort);
 
-  const removerFuncionario = (index) => {
-    const atualizados = funcionarios.filter((_, i) => i !== index);
-    setFuncionarios(atualizados);
-    localStorage.setItem('funcionarios', JSON.stringify(atualizados));
-  };
+          setTodosRegistros(registrosAtualizados);
+          setRegistros(registrosAtualizados);
+          localStorage.setItem('registros', JSON.stringify(registrosAtualizados));
+        }
+      } catch (error) {
+        console.error('Erro ao editar funcionário:', error);
+        // Fallback para localStorage
+        const atualizados = [...funcionarios];
+        atualizados[index] = { nome, pin };
+        setFuncionarios(atualizados);
+        localStorage.setItem('funcionarios', JSON.stringify(atualizados));
 
-  const editarRegistro = (indexGlobal) => {
-    const atual = registros[indexGlobal];
-    const data = prompt('Nova data (DD/MM/AAAA):', atual.data);
-    const horario = prompt('Novo horário:', atual.horario);
-    const tipo = prompt('Novo tipo (entrada/saida):', atual.tipo);
-    if (data && horario && tipo) {
-      const atualizado = { ...atual, data, horario, tipo };
-      const novosReg = [...registros];
-      novosReg[indexGlobal] = atualizado;
-      novosReg.sort(multiSort);
-      setRegistros(novosReg);
+        const registrosAtualizados = todosRegistros.map(r => {
+          if (r.pin === pinAntigo) return { ...r, nome, pin };
+          return r;
+        }).sort(multiSort);
 
-      const idx = todosRegistros.findIndex(r =>
-        r.data === atual.data &&
-        r.horario === atual.horario &&
-        r.nome === atual.nome &&
-        r.tipo === atual.tipo
-      );
-      if (idx !== -1) {
-        const todosAtu = [...todosRegistros];
-        todosAtu[idx] = atualizado;
-        todosAtu.sort(multiSort);
-        setTodosRegistros(todosAtu);
-        localStorage.setItem('registros', JSON.stringify(todosAtu));
+        setTodosRegistros(registrosAtualizados);
+        setRegistros(registrosAtualizados);
+        localStorage.setItem('registros', JSON.stringify(registrosAtualizados));
       }
     }
   };
 
-  const removerRegistro = (indexGlobal) => {
+  const removerFuncionario = async (index) => {
+    const funcionario = funcionarios[index];
+    
+    try {
+      const response = await fetch(`${API_URL}/funcionarios/${funcionario.id || funcionario._id}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        const atualizados = funcionarios.filter((_, i) => i !== index);
+        setFuncionarios(atualizados);
+        localStorage.setItem('funcionarios', JSON.stringify(atualizados));
+      }
+    } catch (error) {
+      console.error('Erro ao remover funcionário:', error);
+      // Fallback para localStorage
+      const atualizados = funcionarios.filter((_, i) => i !== index);
+      setFuncionarios(atualizados);
+      localStorage.setItem('funcionarios', JSON.stringify(atualizados));
+    }
+  };
+
+  const editarRegistro = async (indexGlobal) => {
+    const atual = registros[indexGlobal];
+    const data = prompt('Nova data (DD/MM/AAAA):', atual.data);
+    const horario = prompt('Novo horário:', atual.horario);
+    const tipo = prompt('Novo tipo (entrada/saida):', atual.tipo);
+    
+    if (data && horario && tipo) {
+      try {
+        const response = await fetch(`${API_URL}/registros/${atual.id || atual._id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ data, horario, tipo })
+        });
+
+        if (response.ok) {
+          const registroAtualizado = await response.json();
+          const atualizado = { ...registroAtualizado };
+          const novosReg = [...registros];
+          novosReg[indexGlobal] = atualizado;
+          novosReg.sort(multiSort);
+          setRegistros(novosReg);
+
+          const idx = todosRegistros.findIndex(r =>
+            r.data === atual.data &&
+            r.horario === atual.horario &&
+            r.nome === atual.nome &&
+            r.tipo === atual.tipo
+          );
+          if (idx !== -1) {
+            const todosAtu = [...todosRegistros];
+            todosAtu[idx] = atualizado;
+            todosAtu.sort(multiSort);
+            setTodosRegistros(todosAtu);
+            localStorage.setItem('registros', JSON.stringify(todosAtu));
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao editar registro:', error);
+        // Fallback para localStorage
+        const atualizado = { ...atual, data, horario, tipo };
+        const novosReg = [...registros];
+        novosReg[indexGlobal] = atualizado;
+        novosReg.sort(multiSort);
+        setRegistros(novosReg);
+
+        const idx = todosRegistros.findIndex(r =>
+          r.data === atual.data &&
+          r.horario === atual.horario &&
+          r.nome === atual.nome &&
+          r.tipo === atual.tipo
+        );
+        if (idx !== -1) {
+          const todosAtu = [...todosRegistros];
+          todosAtu[idx] = atualizado;
+          todosAtu.sort(multiSort);
+          setTodosRegistros(todosAtu);
+          localStorage.setItem('registros', JSON.stringify(todosAtu));
+        }
+      }
+    }
+  };
+
+  const removerRegistro = async (indexGlobal) => {
     const reg = registros[indexGlobal];
-    const novosReg = registros.filter((_, i) => i !== indexGlobal);
-    const novosTodos = todosRegistros.filter(r =>
-      !(r.data === reg.data &&
-        r.horario === reg.horario &&
-        r.nome === reg.nome &&
-        r.tipo === reg.tipo)
-    );
-    setRegistros(novosReg);
-    setTodosRegistros(novosTodos);
-    localStorage.setItem('registros', JSON.stringify(novosTodos));
+    
+    try {
+      const response = await fetch(`${API_URL}/registros/${reg.id || reg._id}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        const novosReg = registros.filter((_, i) => i !== indexGlobal);
+        const novosTodos = todosRegistros.filter(r =>
+          !(r.data === reg.data &&
+            r.horario === reg.horario &&
+            r.nome === reg.nome &&
+            r.tipo === reg.tipo)
+        );
+        setRegistros(novosReg);
+        setTodosRegistros(novosTodos);
+        localStorage.setItem('registros', JSON.stringify(novosTodos));
+      }
+    } catch (error) {
+      console.error('Erro ao remover registro:', error);
+      // Fallback para localStorage
+      const novosReg = registros.filter((_, i) => i !== indexGlobal);
+      const novosTodos = todosRegistros.filter(r =>
+        !(r.data === reg.data &&
+          r.horario === reg.horario &&
+          r.nome === reg.nome &&
+          r.tipo === reg.tipo)
+      );
+      setRegistros(novosReg);
+      setTodosRegistros(novosTodos);
+      localStorage.setItem('registros', JSON.stringify(novosTodos));
+    }
   };
 
   // Função de ordenação multi-colunas
@@ -233,9 +412,23 @@ export default function AdminPage() {
         }
       `}</style>
 
+      {carregando && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-black">Sincronizando com o servidor...</p>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between w-full p-4 bg-blue-800 no-print">
         <h1 className="text-xl font-semibold">Admin - Sistema de Ponto Cristal Acquacenter</h1>
-        <button onClick={() => navigate('/')} className="bg-gray-700 hover:bg-gray-600 p-2 rounded">🔙</button>
+        <div className="flex gap-2">
+          <button onClick={buscarDadosBackend} className="bg-green-600 hover:bg-green-700 p-2 rounded" title="Sincronizar com servidor">
+            🔄
+          </button>
+          <button onClick={() => navigate('/')} className="bg-gray-700 hover:bg-gray-600 p-2 rounded">🔙</button>
+        </div>
       </div>
 
       {/* Gerenciar Funcionários */}
