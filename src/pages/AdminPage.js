@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 
 const API_URL = '/api/proxy';
 
-
 export default function AdminPage() {
   const [registros, setRegistros] = useState([]);
   const [todosRegistros, setTodosRegistros] = useState([]);
@@ -33,33 +32,54 @@ export default function AdminPage() {
   const buscarDadosBackend = async () => {
     setCarregando(true);
     try {
+      console.log('Admin: Buscando dados via proxy...');
+      
       // Buscar registros
-      const responseRegistros = await fetch(`${API_URL}/registros`);
-      if (responseRegistros.ok) {
-        const data = await responseRegistros.json();
+      const regResponse = await fetch(`${API_URL}/registros`);
+      const regResult = await regResponse.json();
+      
+      if (regResult.success && regResult.data) {
+        const data = regResult.data;
         data.sort(multiSort);
         setTodosRegistros(data);
         setRegistros(data);
+        console.log('Registros carregados:', data.length);
+      } else {
+        throw new Error(regResult.message || 'Erro ao buscar registros');
       }
-
+      
       // Buscar funcionários
-      const responseFuncionarios = await fetch(`${API_URL}/funcionarios`);
-      if (responseFuncionarios.ok) {
-        const data = await responseFuncionarios.json();
-        setFuncionarios(data);
+      const funcResponse = await fetch(`${API_URL}/funcionarios`);
+      const funcResult = await funcResponse.json();
+      
+      if (funcResult.success && funcResult.data) {
+        setFuncionarios(funcResult.data);
+        console.log('Funcionários carregados:', funcResult.data.length);
+      } else {
+        throw new Error(funcResult.message || 'Erro ao buscar funcionários');
       }
+      
     } catch (error) {
       console.error('Erro ao buscar dados do back-end:', error);
-      // Fallback para localStorage se o back-end falhar
+      
+      // Fallback para localStorage
       const localRegistros = localStorage.getItem('registros');
       const localFuncionarios = localStorage.getItem('funcionarios');
+      
       if (localRegistros) {
         const data = JSON.parse(localRegistros);
         data.sort(multiSort);
         setTodosRegistros(data);
         setRegistros(data);
+        console.log('Usando registros locais:', data.length);
       }
-      if (localFuncionarios) setFuncionarios(JSON.parse(localFuncionarios));
+      
+      if (localFuncionarios) {
+        setFuncionarios(JSON.parse(localFuncionarios));
+        console.log('Usando funcionários locais:', JSON.parse(localFuncionarios).length);
+      }
+      
+      alert(`⚠️ Usando dados locais. Erro: ${error.message}`);
     } finally {
       setCarregando(false);
     }
@@ -108,12 +128,17 @@ export default function AdminPage() {
         body: JSON.stringify(novoFuncionario)
       });
 
-      if (response.ok) {
-        const funcionarioCriado = await response.json();
+      const result = await response.json();
+      
+      if (result.success) {
+        const funcionarioCriado = result.data || result;
         const atualizados = [...funcionarios, funcionarioCriado];
         setFuncionarios(atualizados);
         localStorage.setItem('funcionarios', JSON.stringify(atualizados));
         setNovoFuncionario({ nome: '', pin: '' });
+        alert('✅ Funcionário adicionado com sucesso!');
+      } else {
+        throw new Error(result.message || 'Erro ao adicionar funcionário');
       }
     } catch (error) {
       console.error('Erro ao adicionar funcionário:', error);
@@ -122,6 +147,7 @@ export default function AdminPage() {
       setFuncionarios(atualizados);
       localStorage.setItem('funcionarios', JSON.stringify(atualizados));
       setNovoFuncionario({ nome: '', pin: '' });
+      alert(`✅ Funcionário salvo localmente: ${error.message}`);
     }
   };
 
@@ -143,8 +169,10 @@ export default function AdminPage() {
         body: JSON.stringify(novoRegistro)
       });
 
-      if (response.ok) {
-        const registroCriado = await response.json();
+      const result = await response.json();
+      
+      if (result.success) {
+        const registroCriado = result.data || result;
         const novo = { ...registroCriado };
         const atualizados = [novo, ...todosRegistros];
         atualizados.sort(multiSort);
@@ -152,6 +180,9 @@ export default function AdminPage() {
         setRegistros(atualizados);
         localStorage.setItem('registros', JSON.stringify(atualizados));
         setNovoRegistro({ data: '', horario: '', nome: '', tipo: '', pin: '' });
+        alert('✅ Registro adicionado com sucesso!');
+      } else {
+        throw new Error(result.message || 'Erro ao adicionar registro');
       }
     } catch (error) {
       console.error('Erro ao adicionar registro:', error);
@@ -163,6 +194,7 @@ export default function AdminPage() {
       setRegistros(atualizados);
       localStorage.setItem('registros', JSON.stringify(atualizados));
       setNovoRegistro({ data: '', horario: '', nome: '', tipo: '', pin: '' });
+      alert(`✅ Registro salvo localmente: ${error.message}`);
     }
   };
 
@@ -183,8 +215,10 @@ export default function AdminPage() {
           body: JSON.stringify({ nome, pin })
         });
 
-        if (response.ok) {
-          const funcionarioAtualizado = await response.json();
+        const result = await response.json();
+        
+        if (result.success) {
+          const funcionarioAtualizado = result.data || result;
           const atualizados = [...funcionarios];
           atualizados[index] = funcionarioAtualizado;
           setFuncionarios(atualizados);
@@ -198,6 +232,9 @@ export default function AdminPage() {
           setTodosRegistros(registrosAtualizados);
           setRegistros(registrosAtualizados);
           localStorage.setItem('registros', JSON.stringify(registrosAtualizados));
+          alert('✅ Funcionário atualizado com sucesso!');
+        } else {
+          throw new Error(result.message || 'Erro ao editar funcionário');
         }
       } catch (error) {
         console.error('Erro ao editar funcionário:', error);
@@ -215,22 +252,29 @@ export default function AdminPage() {
         setTodosRegistros(registrosAtualizados);
         setRegistros(registrosAtualizados);
         localStorage.setItem('registros', JSON.stringify(registrosAtualizados));
+        alert(`✅ Funcionário atualizado localmente: ${error.message}`);
       }
     }
   };
 
   const removerFuncionario = async (index) => {
     const funcionario = funcionarios[index];
+    if (!confirm(`Tem certeza que deseja remover ${funcionario.nome}?`)) return;
     
     try {
       const response = await fetch(`${API_URL}/funcionarios/${funcionario.id || funcionario._id}`, {
         method: 'DELETE'
       });
 
-      if (response.ok) {
+      const result = await response.json();
+      
+      if (result.success) {
         const atualizados = funcionarios.filter((_, i) => i !== index);
         setFuncionarios(atualizados);
         localStorage.setItem('funcionarios', JSON.stringify(atualizados));
+        alert('✅ Funcionário removido com sucesso!');
+      } else {
+        throw new Error(result.message || 'Erro ao remover funcionário');
       }
     } catch (error) {
       console.error('Erro ao remover funcionário:', error);
@@ -238,6 +282,7 @@ export default function AdminPage() {
       const atualizados = funcionarios.filter((_, i) => i !== index);
       setFuncionarios(atualizados);
       localStorage.setItem('funcionarios', JSON.stringify(atualizados));
+      alert(`✅ Funcionário removido localmente: ${error.message}`);
     }
   };
 
@@ -257,8 +302,10 @@ export default function AdminPage() {
           body: JSON.stringify({ data, horario, tipo })
         });
 
-        if (response.ok) {
-          const registroAtualizado = await response.json();
+        const result = await response.json();
+        
+        if (result.success) {
+          const registroAtualizado = result.data || result;
           const atualizado = { ...registroAtualizado };
           const novosReg = [...registros];
           novosReg[indexGlobal] = atualizado;
@@ -278,6 +325,9 @@ export default function AdminPage() {
             setTodosRegistros(todosAtu);
             localStorage.setItem('registros', JSON.stringify(todosAtu));
           }
+          alert('✅ Registro atualizado com sucesso!');
+        } else {
+          throw new Error(result.message || 'Erro ao editar registro');
         }
       } catch (error) {
         console.error('Erro ao editar registro:', error);
@@ -301,19 +351,23 @@ export default function AdminPage() {
           setTodosRegistros(todosAtu);
           localStorage.setItem('registros', JSON.stringify(todosAtu));
         }
+        alert(`✅ Registro atualizado localmente: ${error.message}`);
       }
     }
   };
 
   const removerRegistro = async (indexGlobal) => {
     const reg = registros[indexGlobal];
+    if (!confirm(`Tem certeza que deseja remover este registro de ${reg.nome}?`)) return;
     
     try {
       const response = await fetch(`${API_URL}/registros/${reg.id || reg._id}`, {
         method: 'DELETE'
       });
 
-      if (response.ok) {
+      const result = await response.json();
+      
+      if (result.success) {
         const novosReg = registros.filter((_, i) => i !== indexGlobal);
         const novosTodos = todosRegistros.filter(r =>
           !(r.data === reg.data &&
@@ -324,6 +378,9 @@ export default function AdminPage() {
         setRegistros(novosReg);
         setTodosRegistros(novosTodos);
         localStorage.setItem('registros', JSON.stringify(novosTodos));
+        alert('✅ Registro removido com sucesso!');
+      } else {
+        throw new Error(result.message || 'Erro ao remover registro');
       }
     } catch (error) {
       console.error('Erro ao remover registro:', error);
@@ -338,6 +395,7 @@ export default function AdminPage() {
       setRegistros(novosReg);
       setTodosRegistros(novosTodos);
       localStorage.setItem('registros', JSON.stringify(novosTodos));
+      alert(`✅ Registro removido localmente: ${error.message}`);
     }
   };
 

@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 
 const API_URL = '/api/proxy';
 
-
 export default function PinPage() {
   const [pin, setPin] = useState('');
   const [mensagem, setMensagem] = useState('');
@@ -33,42 +32,51 @@ export default function PinPage() {
   }), []);
 
   // Buscar dados do back-end
- const buscarDadosBackend = async () => {
-  try {
-    // Buscar funcionários
-    const responseFunc = await fetch(`${API_URL}/funcionarios`);
-    const funcData = await responseFunc.json();
-    
-    if (funcData.success === false) {
-      console.warn('Backend offline, usando localStorage');
-      // Fallback para localStorage
-      const funcionariosSalvos = JSON.parse(localStorage.getItem('funcionarios') || '[]');
-      setFuncionarios(funcionariosSalvos);
-    } else {
-      setFuncionarios(funcData.data || funcData);
+  const buscarDadosBackend = async () => {
+    try {
+      console.log('Buscando dados do backend via proxy...');
+      
+      // Buscar funcionários
+      const funcResponse = await fetch(`${API_URL}/funcionarios`);
+      const funcResult = await funcResponse.json();
+      
+      if (funcResult.success && funcResult.data) {
+        setFuncionarios(funcResult.data);
+        console.log('Funcionários carregados do backend:', funcResult.data.length);
+      } else {
+        console.warn('Erro ao buscar funcionários, usando localStorage');
+        const localFunc = JSON.parse(localStorage.getItem('funcionarios') || '[]');
+        setFuncionarios(localFunc);
+      }
+      
+      // Buscar registros
+      const regResponse = await fetch(`${API_URL}/registros`);
+      const regResult = await regResponse.json();
+      
+      if (regResult.success && regResult.data) {
+        setRegistros(regResult.data);
+        console.log('Registros carregados do backend:', regResult.data.length);
+      } else {
+        console.warn('Erro ao buscar registros, usando localStorage');
+        const localReg = JSON.parse(localStorage.getItem('registros') || '[]');
+        setRegistros(localReg);
+      }
+      
+    } catch (error) {
+      console.error('Erro completo ao buscar dados:', error);
+      
+      // Fallback completo para localStorage
+      const localFunc = JSON.parse(localStorage.getItem('funcionarios') || '[]');
+      const localReg = JSON.parse(localStorage.getItem('registros') || '[]');
+      
+      setFuncionarios(localFunc);
+      setRegistros(localReg);
+      
+      // Mostrar mensagem amigável
+      setMensagem(`⚠️ Usando dados locais (sem conexão com servidor)`);
+      setTimeout(() => setMensagem(''), 3000);
     }
-
-    // Buscar registros
-    const responseReg = await fetch(`${API_URL}/registros`);
-    const regData = await responseReg.json();
-    
-    if (regData.success === false) {
-      console.warn('Backend offline, usando localStorage para registros');
-      const registrosSalvos = JSON.parse(localStorage.getItem('registros') || '[]');
-      setRegistros(registrosSalvos);
-    } else {
-      setRegistros(regData.data || regData);
-    }
-    
-  } catch (error) {
-    console.error('Erro completo ao buscar dados:', error);
-    // Fallback completo para localStorage
-    const funcionariosSalvos = JSON.parse(localStorage.getItem('funcionarios') || '[]');
-    const registrosSalvos = JSON.parse(localStorage.getItem('registros') || '[]');
-    setFuncionarios(funcionariosSalvos);
-    setRegistros(registrosSalvos);
-  }
-};
+  };
 
   useEffect(() => {
     const atualizarHora = () => setHoraAtual(new Date().toLocaleTimeString('pt-BR'));
@@ -129,7 +137,8 @@ export default function PinPage() {
     };
 
     try {
-      // Enviar para o back-end
+      console.log('Enviando registro para backend...', novoRegistro);
+      
       const response = await fetch(`${API_URL}/registros`, {
         method: 'POST',
         headers: {
@@ -137,49 +146,55 @@ export default function PinPage() {
         },
         body: JSON.stringify(novoRegistro)
       });
-
-      if (response.ok) {
-        const registroCriado = await response.json();
-        const novosRegistros = [...registros, registroCriado];
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        // Adicionar ao estado local
+        const novosRegistros = [...registros, result.data || result];
         setRegistros(novosRegistros);
         localStorage.setItem('registros', JSON.stringify(novosRegistros));
-
+        
         let msg = '';
         switch (tipo) {
-          case 'entrada':
-            msg = `Bom trabalho, ${funcionarioAtual.nome}!`;
+          case 'entrada': 
+            msg = `✅ Bom trabalho, ${funcionarioAtual.nome}! (Salvo no servidor)`;
             break;
-          case 'saida':
-            msg = `Até logo, ${funcionarioAtual.nome}!`;
+          case 'saida': 
+            msg = `👋 Até logo, ${funcionarioAtual.nome}! (Salvo no servidor)`;
             break;
-          case 'intervalo ida':
-            msg = `Bom intervalo, ${funcionarioAtual.nome}!`;
+          case 'intervalo ida': 
+            msg = `☕ Bom intervalo, ${funcionarioAtual.nome}! (Salvo no servidor)`;
             break;
-          case 'intervalo volta':
-            msg = `Bem-vindo de volta, ${funcionarioAtual.nome}!`;
+          case 'intervalo volta': 
+            msg = `↩️ Bem-vindo de volta, ${funcionarioAtual.nome}! (Salvo no servidor)`;
             break;
-          default:
-            msg = `Registro realizado.`;
+          default: 
+            msg = `✓ Registro realizado! (Salvo no servidor)`;
         }
-
+        
         setMensagem(msg);
-        falarTexto(tipo);
-        playConfirmationSound();
-        setPin('');
-        setFuncionarioAtual(null);
-        setMostrarTipo(false);
-        setBloqueado(true);
-        setTimeout(() => setBloqueado(false), 2000);
+      } else {
+        throw new Error(result.message || 'Erro ao salvar no backend');
       }
+      
     } catch (error) {
-      console.error('Erro ao salvar registro no servidor:', error);
-      // Fallback para localStorage
+      console.error('Erro ao salvar registro:', error);
+      
+      // Salvar localmente
       const novosRegistros = [...registros, novoRegistro];
       setRegistros(novosRegistros);
       localStorage.setItem('registros', JSON.stringify(novosRegistros));
-
-      let msg = `Registro local salvo (sem conexão com servidor) - ${funcionarioAtual.nome}`;
+      
+      let msg = `📱 Registro salvo localmente - ${funcionarioAtual.nome}`;
+      if (error.message.includes('CORS') || error.message.includes('Network')) {
+        msg = `🔒 ${msg} (Problema de conexão com servidor)`;
+      } else {
+        msg = `⚠️ ${msg} (Sem conexão com servidor)`;
+      }
+      
       setMensagem(msg);
+    } finally {
       falarTexto(tipo);
       playConfirmationSound();
       setPin('');
@@ -210,8 +225,23 @@ export default function PinPage() {
   };
 
   const playConfirmationSound = () => {
-    const audio = new Audio('https://cdn.pixabay.com/audio/2022/03/15/audio_6dbba87df3.mp3');
-    audio.play().catch(e => console.warn('Erro ao tocar som:', e));
+    // Som alternativo que funciona
+    const audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-correct-answer-tone-2870.mp3');
+    audio.volume = 0.3;
+    
+    // Tentar carregar primeiro
+    audio.load();
+    
+    audio.play().catch(e => {
+      console.warn('Erro ao tocar som:', e);
+      // Tentar fallback silencioso se falhar
+      try {
+        const fallbackAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAZGF0YQQ=');
+        fallbackAudio.play();
+      } catch (fallbackError) {
+        // Silenciosamente ignorar se não funcionar
+      }
+    });
   };
 
   const handleTecla = (v) => {
