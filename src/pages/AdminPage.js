@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'; 
 import { useNavigate } from 'react-router-dom';
 
-const API_URL = '/api/proxy';
+const API_URL = 'https://backend-ponto-digital-2.onrender.com';
+
 
 export default function AdminPage() {
   const [registros, setRegistros] = useState([]);
