@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react'; 
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+const API_URL = "https://backend-ponto-digital-2.onrender.com";
 
 export default function AdminPage() {
   const [registros, setRegistros] = useState([]);
@@ -26,28 +28,46 @@ export default function AdminPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const localRegistros = localStorage.getItem('registros');
-    const localFuncionarios = localStorage.getItem('funcionarios');
-    if (localRegistros) {
-      const data = JSON.parse(localRegistros);
-      data.sort(multiSort); // usa ordenação multi-colunas
-      setTodosRegistros(data);
-      setRegistros(data);
-    }
-    if (localFuncionarios) setFuncionarios(JSON.parse(localFuncionarios));
+    fetchDados();
   }, []);
 
+  const fetchDados = async () => {
+    try {
+      const [resF, resR] = await Promise.all([
+        fetch(`${API_URL}/funcionarios`),
+        fetch(`${API_URL}/registros`)
+      ]);
+      if (!resF.ok || !resR.ok) throw new Error('Erro ao buscar dados');
+      const funcs = await resF.json();
+      const regs = await resR.json();
+
+      // normaliza datas (se vierem em ISO yyyy-mm-dd ou dd/mm/yyyy)
+      const normalizedRegs = regs.map(r => ({
+        ...r,
+        data: r.data || '',
+        horario: r.horario || '',
+      }));
+
+      normalizedRegs.sort(multiSort);
+      setFuncionarios(funcs);
+      setTodosRegistros(normalizedRegs);
+      setRegistros(normalizedRegs);
+    } catch (err) {
+      console.error('Erro fetchDados:', err);
+    }
+  };
+
   const handleBuscar = () => {
-    const inicio = new Date(filtroInicio);
-    const fim = new Date(filtroFim);
+    const inicio = filtroInicio ? new Date(filtroInicio) : null;
+    const fim = filtroFim ? new Date(filtroFim) : null;
     const filtrados = todosRegistros
       .filter(r => {
-        const dataObj = new Date(r.data.split('/').reverse().join('-'));
+        const dataObj = parseDataForFilter(r.data);
         return (
-          (!filtroInicio || dataObj >= inicio) &&
-          (!filtroFim || dataObj <= fim) &&
+          (!inicio || dataObj >= inicio) &&
+          (!fim || dataObj <= fim) &&
           (!filtroNome || r.nome.toLowerCase().includes(filtroNome.toLowerCase())) &&
-          (!filtroPIN || r.pin.includes(filtroPIN))
+          (!filtroPIN || String(r.pin).includes(filtroPIN))
         );
       })
       .sort(multiSort);
@@ -64,15 +84,91 @@ export default function AdminPage() {
     setPaginaAtual(1);
   };
 
-  const adicionarFuncionario = () => {
+  // ---------- FUNCIONÁRIOS (API) ----------
+  const adicionarFuncionario = async () => {
     if (!novoFuncionario.nome || !novoFuncionario.pin) return;
-    const atualizados = [...funcionarios, novoFuncionario];
-    setFuncionarios(atualizados);
-    localStorage.setItem('funcionarios', JSON.stringify(atualizados));
-    setNovoFuncionario({ nome: '', pin: '' });
+    try {
+      const res = await fetch(`${API_URL}/funcionarios`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(novoFuncionario)
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(()=>({error:'Erro'}));
+        alert(err.error || 'Erro ao adicionar funcionário');
+        return;
+      }
+      const created = await res.json();
+      // buscar lista atualizada
+      const resF = await fetch(`${API_URL}/funcionarios`);
+      const funcs = await resF.json();
+      setFuncionarios(funcs);
+      setNovoFuncionario({ nome: '', pin: '' });
+    } catch (e) {
+      console.error('adicionarFuncionario', e);
+    }
   };
 
-  const adicionarRegistro = () => {
+  const editarFuncionario = async (index) => {
+    const atual = funcionarios[index];
+    if (!atual) return;
+    const nomeNovo = prompt('Editar nome:', atual.nome);
+    const pinNovo = prompt('Editar PIN:', atual.pin);
+    if (!nomeNovo || !pinNovo) return;
+
+    try {
+      const res = await fetch(`${API_URL}/funcionarios/${atual.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome: nomeNovo, pin: pinNovo })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(()=>({error:'Erro'}));
+        alert(err.error || 'Erro ao editar funcionário');
+        return;
+      }
+      // atualizar registros que contenham o pin antigo: buscar todos registros, mapear e atualizar via PUT cada um que tenha pin antigo
+      const resRegs = await fetch(`${API_URL}/registros`);
+      const regs = await resRegs.json();
+      const regsParaAtualizar = regs.filter(r => String(r.pin) === String(atual.pin));
+      for (const r of regsParaAtualizar) {
+        await fetch(`${API_URL}/registros/${r.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            data: r.data,
+            horario: r.horario,
+            nome: nomeNovo,
+            tipo: r.tipo,
+            pin: pinNovo
+          })
+        }).catch(e => console.warn('Erro atualizando registro', e));
+      }
+
+      await fetchDados();
+    } catch (e) {
+      console.error('editarFuncionario', e);
+    }
+  };
+
+  const removerFuncionario = async (index) => {
+    const atual = funcionarios[index];
+    if (!atual) return;
+    if (!window.confirm(`Remover ${atual.nome}?`)) return;
+    try {
+      const res = await fetch(`${API_URL}/funcionarios/${atual.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        alert('Erro ao remover funcionário');
+        return;
+      }
+      await fetchDados();
+    } catch (e) {
+      console.error('removerFuncionario', e);
+    }
+  };
+
+  // ---------- REGISTROS (API) ----------
+  const adicionarRegistro = async () => {
     if (
       !novoRegistro.data ||
       !novoRegistro.horario ||
@@ -81,93 +177,84 @@ export default function AdminPage() {
       !novoRegistro.pin
     ) return;
 
-    const novo = { ...novoRegistro };
-    const atualizados = [novo, ...todosRegistros];
-    atualizados.sort(multiSort);
-    setTodosRegistros(atualizados);
-    setRegistros(atualizados);
-    localStorage.setItem('registros', JSON.stringify(atualizados));
-    setNovoRegistro({ data: '', horario: '', nome: '', tipo: '', pin: '' });
-  };
-
-  const editarFuncionario = (index) => {
-    const atual = funcionarios[index];
-    const nomeAntigo = atual.nome;
-    const pinAntigo = atual.pin;
-    const nome = prompt('Editar nome:', atual.nome);
-    const pin = prompt('Editar PIN:', atual.pin);
-    if (nome && pin) {
-      const atualizados = [...funcionarios];
-      atualizados[index] = { nome, pin };
-      setFuncionarios(atualizados);
-      localStorage.setItem('funcionarios', JSON.stringify(atualizados));
-
-      const registrosAtualizados = todosRegistros.map(r => {
-        if (r.pin === pinAntigo) return { ...r, nome, pin };
-        return r;
-      }).sort(multiSort);
-
-      setTodosRegistros(registrosAtualizados);
-      setRegistros(registrosAtualizados);
-      localStorage.setItem('registros', JSON.stringify(registrosAtualizados));
+    try {
+      // enviar para a API
+      const payload = { ...novoRegistro };
+      const res = await fetch(`${API_URL}/registros`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        alert('Erro ao adicionar registro');
+        return;
+      }
+      await fetchDados();
+      setNovoRegistro({ data: '', horario: '', nome: '', tipo: '', pin: '' });
+    } catch (e) {
+      console.error('adicionarRegistro', e);
     }
   };
 
-  const removerFuncionario = (index) => {
-    const atualizados = funcionarios.filter((_, i) => i !== index);
-    setFuncionarios(atualizados);
-    localStorage.setItem('funcionarios', JSON.stringify(atualizados));
-  };
-
-  const editarRegistro = (indexGlobal) => {
+  const editarRegistro = async (indexGlobal) => {
     const atual = registros[indexGlobal];
-    const data = prompt('Nova data (DD/MM/AAAA):', atual.data);
+    if (!atual) return;
+    const data = prompt('Nova data (DD/MM/AAAA ou YYYY-MM-DD):', atual.data);
     const horario = prompt('Novo horário:', atual.horario);
     const tipo = prompt('Novo tipo (entrada/saida):', atual.tipo);
     if (data && horario && tipo) {
-      const atualizado = { ...atual, data, horario, tipo };
-      const novosReg = [...registros];
-      novosReg[indexGlobal] = atualizado;
-      novosReg.sort(multiSort);
-      setRegistros(novosReg);
-
-      const idx = todosRegistros.findIndex(r =>
-        r.data === atual.data &&
-        r.horario === atual.horario &&
-        r.nome === atual.nome &&
-        r.tipo === atual.tipo
-      );
-      if (idx !== -1) {
-        const todosAtu = [...todosRegistros];
-        todosAtu[idx] = atualizado;
-        todosAtu.sort(multiSort);
-        setTodosRegistros(todosAtu);
-        localStorage.setItem('registros', JSON.stringify(todosAtu));
+      try {
+        const body = {
+          data,
+          horario,
+          nome: atual.nome,
+          tipo,
+          pin: atual.pin
+        };
+        const res = await fetch(`${API_URL}/registros/${atual.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+          alert('Erro ao atualizar registro');
+          return;
+        }
+        await fetchDados();
+      } catch (e) {
+        console.error('editarRegistro', e);
       }
     }
   };
 
-  const removerRegistro = (indexGlobal) => {
+  const removerRegistro = async (indexGlobal) => {
     const reg = registros[indexGlobal];
-    const novosReg = registros.filter((_, i) => i !== indexGlobal);
-    const novosTodos = todosRegistros.filter(r =>
-      !(r.data === reg.data &&
-        r.horario === reg.horario &&
-        r.nome === reg.nome &&
-        r.tipo === reg.tipo)
-    );
-    setRegistros(novosReg);
-    setTodosRegistros(novosTodos);
-    localStorage.setItem('registros', JSON.stringify(novosTodos));
+    if (!reg) return;
+    if (!window.confirm(`Excluir registro de ${reg.nome} em ${reg.data} ${reg.horario}?`)) return;
+    try {
+      const res = await fetch(`${API_URL}/registros/${reg.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        alert('Erro ao excluir registro');
+        return;
+      }
+      await fetchDados();
+    } catch (e) {
+      console.error('removerRegistro', e);
+    }
   };
 
   // Função de ordenação multi-colunas
   const multiSort = (a, b) => {
-    const parseData = d => new Date(d.split('/').reverse().join('-'));
+    const parseData = d => {
+      if (!d) return new Date(0);
+      if (d.includes('-')) return new Date(d); // yyyy-mm-dd
+      if (d.includes('/')) return new Date(d.split('/').reverse().join('-')); // dd/mm/yyyy
+      return new Date(d);
+    };
     let res = parseData(b.data) - parseData(a.data); // Data descendente
-    if (res === 0) res = a.horario.localeCompare(b.horario);
-    if (res === 0) res = a.nome.localeCompare(b.nome);
-    if (res === 0) res = a.tipo.localeCompare(b.tipo);
+    if (res === 0) res = (a.horario || '').localeCompare(b.horario || '');
+    if (res === 0) res = (a.nome || '').localeCompare(b.nome || '');
+    if (res === 0) res = (a.tipo || '').localeCompare(b.tipo || '');
     return res;
   };
 
@@ -184,12 +271,12 @@ export default function AdminPage() {
       let valorB = b[campo];
 
       if (campo === 'data') {
-        valorA = new Date(a.data.split('/').reverse().join('-'));
-        valorB = new Date(b.data.split('/').reverse().join('-'));
+        valorA = parseForSort(a.data);
+        valorB = parseForSort(b.data);
       }
       if (campo === 'horario') {
-        valorA = a.horario;
-        valorB = b.horario;
+        valorA = a.horario || '';
+        valorB = b.horario || '';
       }
 
       if (valorA < valorB) return direcao === 'asc' ? -1 : 1;
@@ -200,7 +287,21 @@ export default function AdminPage() {
     setRegistros(registrosOrdenados);
   };
 
-  const totalPaginas = Math.ceil(registros.length / registrosPorPagina);
+  const parseForSort = (d) => {
+    if (!d) return '';
+    if (d.includes('-')) return new Date(d);
+    if (d.includes('/')) return new Date(d.split('/').reverse().join('-'));
+    return new Date(d);
+  };
+
+  const parseDataForFilter = (d) => {
+    if (!d) return new Date(0);
+    if (d.includes('-')) return new Date(d);
+    if (d.includes('/')) return new Date(d.split('/').reverse().join('-'));
+    return new Date(d);
+  };
+
+  const totalPaginas = Math.ceil(registros.length / registrosPorPagina) || 1;
   const registrosExibidos = registros.slice(
     (paginaAtual - 1) * registrosPorPagina,
     paginaAtual * registrosPorPagina
@@ -248,7 +349,7 @@ export default function AdminPage() {
         </div>
         <ul className="space-y-2">
           {funcionarios.map((f, i) => (
-            <li key={i} className="flex justify-between items-center border p-2 rounded">
+            <li key={f.id || i} className="flex justify-between items-center border p-2 rounded">
               <span>{f.nome} (PIN: {f.pin})</span>
               <div className="space-x-2">
                 <button onClick={() => editarFuncionario(i)} className="bg-yellow-500 px-2 py-1 rounded">✏️</button>
@@ -319,8 +420,8 @@ export default function AdminPage() {
           </thead>
           <tbody>
             {registrosExibidos.map((r, i) => (
-              <tr key={i} className="border-b">
-                <td className="p-2">{r.data}</td>
+              <tr key={r.id || i} className="border-b">
+                <td className="p-2">{formatDisplayDate(r.data)}</td>
                 <td className="p-2">{r.horario}</td>
                 <td className="p-2">{r.nome}</td>
                 <td className="p-2">{r.tipo}</td>
@@ -348,4 +449,11 @@ export default function AdminPage() {
       </div>
     </div>
   );
+}
+
+// ---------- helpers ----------
+function formatDisplayDate(d) {
+  if (!d) return '';
+  if (d.includes('-')) return d.split('-').reverse().join('/');
+  return d;
 }
