@@ -1,0 +1,78 @@
+[33mefa90fbf[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m versão inicial 4.0
+[33ma3cb3516[m versão inicial 3.0
+[33mec729b44[m versão inicial 3.0
+[33mfbd00a61[m versão inicial 2.0
+[33m8e32a4b0[m versão inicial
+[33md4698aa2[m atualização 7.0 10-12
+[33ma4e61287[m atualização 6.0 10-12
+[33m25b5ce11[m atualização 5.0 10-12
+[33mb5205dd2[m atualização 4.0 10-12
+[33m6140042b[m atualização 3.0 10-12
+[33m60181d06[m atualização 2.0 10-12
+[33m6f76907b[m  atualização 1.0 10-12
+[33m99264d1d[m 9.0
+[33m95cb0e73[m  8.0
+[33mfe9badf6[m 8.0
+[33mf35fb83d[m atualização 7.0 09-12
+[33m6b074559[m  atualização 5.0
+[33m12b0b01d[m atualização 4.0
+[33me9cf84aa[m atualização 3.0 09-12
+[33m15755d6a[m atualização 2 09-12
+[33m81ae3438[m atualização de ponto 09/12
+[33m65a6e833[m atualização 7.0
+[33mdf6d222e[m atualização 7.0
+[33m2251947f[m atualização 6.0
+[33m0f0abc70[m atualização
+[33ma0bc9844[m atualização
+[33m6ba814ae[m atualização de adaptação ao back end
+[33m5d20045c[m atualização
+[33m2c99a5a3[m atualização 3 front
+[33m9d289340[m  atualização 2 08/12
+[33m7c9f2a5e[m atualização 08/12
+[33m1023db9c[m atualização 03
+[33mdcacd929[m Adiciona proxy para resolver CORS
+[33m91b0f5e1[m atualização 2.0
+[33m09d5ff46[m  integração ao back end  v1
+[33m8127eda6[m first commit
+[33mc208a8e5[m retorno a versão antiga
+[33m1f6fbcb9[m atualização pin page
+[33mcc1871bc[m commit relacionado a integração do back-end v1
+[33m6206c7f7[m preloader atualizado versão 4
+[33m09bc056a[m preloader instalado
+[33mfa76233f[m atualização 01-10
+[33m99c24bcf[m modificação copyright
+[33m6eb6aaa4[m atualização
+[33m85d02a94[m atualização pinpage
+[33me2bf850c[m atualização
+[33me3398d7c[m Merge branch 'main' of https://github.com/isacmiranda/cristal-ponto-app-2_0
+[33mf004fc92[m atualização admin
+[33m6fd1fdb8[m atualização
+[33mcd2025c2[m atualização logo
+[33m22f8a090[m atualização logo
+[33m3e2d34f5[m atualização
+[33m373f232d[m atualização admin
+[33m6ef6475b[m atualização
+[33m15e2fd33[m atualização
+[33m22e7ff50[m atualização e implementação do no adminpage
+[33mdf15a7fb[m alteração
+[33mee722acd[m atualização
+[33m7a80ef07[m atualização 2 20-06-25
+[33m1f10de7f[m atualização 20-06-25
+[33m54095c20[m atualização front end
+[33me8eb4d1a[m atualização pinpage com voz
+[33mfe8eb0bf[m atualização pinpage
+[33m340b9091[m  adição de melhorias
+[33m4be941f2[m atualização
+[33m263152d6[m atualização admin page
+[33m134d2f8a[m atualização adminpage
+[33m8021bfa8[m  alteração adminp
+[33m65f4f67c[m correção na parte de api
+[33mbea2064f[m Atualiza PinPage.js e AdminPage.js com melhorias
+[33mf73abdb2[m fix: adiciona dependência axios
+[33m19fe8e08[m fix: adiciona dependência date-fns
+[33ma5ea344e[m versão 2.0 do projeto
+[33m0ae0734d[m Atualiza páginas AdminPage e PinPage; adiciona config.js com configurações
+[33mdf0f732b[m Initial commit
+[33mb292ca78[m Sua mensagem de commit aqui
+[33m28dba44b[m Remove node_modules do repositório e adiciona .gitignore
+[33m250bf1f6[m Primeiro commit
