@@ -14,6 +14,7 @@ export default function PinPage() {
   const [funcionarios, setFuncionarios] = useState([]);
   const [mostrarTipo, setMostrarTipo] = useState(false);
   const [funcionarioAtual, setFuncionarioAtual] = useState(null);
+  const [statusConexao, setStatusConexao] = useState('verificando'); // 'verificando', 'conectado', 'desconectado'
 
   // PRELOADER
   const [loading, setLoading] = useState(true);
@@ -49,11 +50,49 @@ export default function PinPage() {
     const id = setInterval(atualizarHora, 1000);
     buscarPrevisaoTempo();
 
+    // Verificar conexão com o servidor
+    verificarConexaoServidor();
+    
     // buscar funcionarios e registros do backend
     fetchDados();
 
     return () => clearInterval(id);
   }, [weatherIcons]);
+
+  // Função para verificar conexão com o servidor
+  const verificarConexaoServidor = async () => {
+    try {
+      setStatusConexao('verificando');
+      const response = await fetch(`${API_URL}/`, {
+        method: 'HEAD',
+        mode: 'no-cors'
+      }).catch(async () => {
+        // Se falhar com no-cors, tenta uma requisição GET normal
+        const res = await fetch(`${API_URL}/`);
+        return res;
+      });
+      
+      setStatusConexao('conectado');
+      
+      // Verificar periodicamente a conexão (a cada 30 segundos)
+      const intervalo = setInterval(async () => {
+        try {
+          await fetch(`${API_URL}/`, { method: 'HEAD' });
+          setStatusConexao('conectado');
+        } catch {
+          setStatusConexao('desconectado');
+        }
+      }, 30000);
+      
+      return () => clearInterval(intervalo);
+    } catch (error) {
+      console.error('Erro na conexão com o servidor:', error);
+      setStatusConexao('desconectado');
+      
+      // Tentar reconectar após 10 segundos
+      setTimeout(verificarConexaoServidor, 10000);
+    }
+  };
 
   const fetchDados = async () => {
     try {
@@ -66,8 +105,10 @@ export default function PinPage() {
       const regs = await resR.json();
       setFuncionarios(funcs);
       setRegistros(regs);
+      setStatusConexao('conectado');
     } catch (e) {
       console.error('fetchDados PinPage', e);
+      setStatusConexao('desconectado');
     }
   };
 
@@ -80,6 +121,12 @@ export default function PinPage() {
 
   const validarPin = () => {
     if (!pin || bloqueado) return;
+
+    // Verificar conexão antes de validar
+    if (statusConexao !== 'conectado') {
+      setMensagem('⚠️ Sistema offline. Tente novamente em alguns segundos.');
+      return;
+    }
 
     const funcionario = funcionarios.find(f => String(f.pin) === String(pin));
     if (!funcionario) {
@@ -94,6 +141,15 @@ export default function PinPage() {
 
   const registrarPonto = async (tipo) => {
     if (!funcionarioAtual) return;
+
+    // Verificar conexão antes de registrar
+    if (statusConexao !== 'conectado') {
+      setMensagem('⚠️ Sistema offline. Não foi possível registrar.');
+      setPin('');
+      setFuncionarioAtual(null);
+      setMostrarTipo(false);
+      return;
+    }
 
     const agora = new Date();
     
@@ -125,6 +181,7 @@ export default function PinPage() {
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         alert(errData.error || 'Erro ao registrar ponto');
+        setStatusConexao('desconectado');
         return;
       }
       
@@ -159,6 +216,7 @@ export default function PinPage() {
       setTimeout(() => setBloqueado(false), 2000);
     } catch (e) {
       console.error('registrarPonto', e);
+      setStatusConexao('desconectado');
       alert('Erro de conexão ao registrar ponto');
     }
   };
@@ -199,6 +257,22 @@ export default function PinPage() {
   };
 
   const teclas = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'OK'];
+
+  // Função para obter o texto e cor do status
+  const getStatusInfo = () => {
+    switch (statusConexao) {
+      case 'conectado':
+        return { texto: '✅ Conectado', cor: 'bg-green-500' };
+      case 'desconectado':
+        return { texto: '❌ Desconectado', cor: 'bg-red-500' };
+      case 'verificando':
+        return { texto: '⏳ Verificando...', cor: 'bg-yellow-500' };
+      default:
+        return { texto: '❓ Desconhecido', cor: 'bg-gray-500' };
+    }
+  };
+
+  const statusInfo = getStatusInfo();
 
   // Preloader modernizado com 3 segundos de animação
   if (loading) {
@@ -326,6 +400,17 @@ export default function PinPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-500 text-white flex flex-col items-center justify-center px-4 py-6">
+
+      {/* Status da conexão - Adicionado no topo */}
+      <div className="absolute top-4 right-4 z-10">
+        <div className={`${statusInfo.cor} text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-2 shadow-lg`}>
+          <span className="text-xs">🔌</span>
+          <span>{statusInfo.texto}</span>
+          {statusConexao === 'verificando' && (
+            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+          )}
+        </div>
+      </div>
 
       <div className="text-center mb-6">
         <div className="flex items-center justify-center gap-4 flex-wrap mb-2">

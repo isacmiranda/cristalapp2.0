@@ -288,6 +288,108 @@ export default function AdminPage() {
     }
   };
 
+  // Função para gerar PDF da tabela
+  const gerarPDF = () => {
+    // Usando html2canvas e jsPDF para gerar o PDF
+    const generatePDF = async () => {
+      try {
+        // Importação dinâmica das bibliotecas
+        const html2canvas = (await import('html2canvas')).default;
+        const jsPDF = (await import('jspdf')).default;
+        
+        // Capturar a tabela
+        const tabelaElement = document.querySelector('table');
+        if (!tabelaElement) {
+          alert('Não foi possível encontrar a tabela para exportar.');
+          return;
+        }
+        
+        // Criar um clone da tabela para manipulação
+        const tabelaClone = tabelaElement.cloneNode(true);
+        
+        // Remover botões de ação (editar/excluir) do clone
+        const botoesAcao = tabelaClone.querySelectorAll('.no-print');
+        botoesAcao.forEach(botao => botao.remove());
+        
+        // Adicionar estilos específicos para o PDF
+        tabelaClone.style.width = '100%';
+        tabelaClone.style.borderCollapse = 'collapse';
+        
+        // Criar um container temporário
+        const container = document.createElement('div');
+        container.style.position = 'absolute';
+        container.style.left = '-9999px';
+        container.style.width = '800px';
+        container.appendChild(tabelaClone);
+        document.body.appendChild(container);
+        
+        // Gerar canvas da tabela
+        const canvas = await html2canvas(tabelaClone, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          useCORS: true,
+          logging: false
+        });
+        
+        // Remover container temporário
+        document.body.removeChild(container);
+        
+        // Configurar PDF
+        const pdf = new jsPDF('l', 'mm', 'a4'); // Orientação landscape
+        const imgWidth = 280; // mm
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        
+        // Adicionar título
+        const titulo = 'Registro de Ponto - Cristal Acquacenter';
+        const dataGeracao = new Date().toLocaleDateString('pt-BR');
+        const horaGeracao = new Date().toLocaleTimeString('pt-BR');
+        
+        pdf.setFontSize(16);
+        pdf.text(titulo, 10, 10);
+        
+        pdf.setFontSize(10);
+        pdf.text(`Gerado em: ${dataGeracao} às ${horaGeracao}`, 10, 17);
+        pdf.text(`Total de registros: ${registros.length}`, 10, 22);
+        
+        // Adicionar filtros aplicados
+        let filtrosTexto = 'Filtros: ';
+        if (filtroInicio) filtrosTexto += `De ${filtroInicio} `;
+        if (filtroFim) filtrosTexto += `Até ${filtroFim} `;
+        if (filtroNome) filtrosTexto += `Nome: ${filtroNome} `;
+        if (filtroPIN) filtrosTexto += `PIN: ${filtroPIN} `;
+        
+        if (filtrosTexto.length > 10) {
+          pdf.text(filtrosTexto, 10, 27);
+        }
+        
+        // Adicionar imagem da tabela
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, 35, imgWidth, imgHeight);
+        
+        // Adicionar rodapé
+        const totalPages = pdf.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+          pdf.setPage(i);
+          pdf.setFontSize(8);
+          pdf.text(
+            `Página ${i} de ${totalPages} - Sistema de Ponto Cristal Acquacenter`,
+            10,
+            pdf.internal.pageSize.height - 10
+          );
+        }
+        
+        // Salvar PDF
+        pdf.save(`registro-ponto-cristal-${dataGeracao.replace(/\//g, '-')}.pdf`);
+        
+        alert('PDF gerado com sucesso!');
+      } catch (error) {
+        console.error('Erro ao gerar PDF:', error);
+        alert('Erro ao gerar PDF. Verifique o console para mais detalhes.');
+      }
+    };
+    
+    generatePDF();
+  };
+
   // Função de ordenação multi-colunas
   const multiSort = (a, b) => {
     const parseData = d => {
@@ -534,13 +636,19 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Botão imprimir */}
-      <div className="flex justify-end w-full max-w-4xl mb-2 no-print">
+      {/* Botões imprimir e baixar PDF */}
+      <div className="flex justify-end w-full max-w-4xl mb-2 gap-2 no-print">
+        <button 
+          onClick={gerarPDF}
+          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded flex items-center gap-2"
+        >
+          📥 Baixar PDF
+        </button>
         <button 
           onClick={() => window.print()} 
-          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded"
+          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded flex items-center gap-2"
         >
-          🖨️ Imprimir Tabela
+          🖨️ Imprimir
         </button>
       </div>
 
