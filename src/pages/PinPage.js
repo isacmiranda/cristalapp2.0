@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FaWifi, FaExclamationTriangle, FaSync } from 'react-icons/fa';
 
 const API_URL = "https://backend-ponto-digital-2.onrender.com";
 
@@ -10,11 +11,11 @@ export default function PinPage() {
   const [temperatura, setTemperatura] = useState(null);
   const [iconeClima, setIconeClima] = useState('');
   const [bloqueado, setBloqueado] = useState(false);
-  const [registros, setRegistros] = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
   const [mostrarTipo, setMostrarTipo] = useState(false);
   const [funcionarioAtual, setFuncionarioAtual] = useState(null);
   const [statusConexao, setStatusConexao] = useState('verificando'); // 'verificando', 'conectado', 'desconectado'
+  const [ultimaAtualizacao, setUltimaAtualizacao] = useState('');
 
   // PRELOADER
   const [loading, setLoading] = useState(true);
@@ -32,44 +33,17 @@ export default function PinPage() {
     71: '🌨️', 73: '🌨️', 75: '❄️', 80: '🌧️', 81: '🌧️', 82: '🌧️'
   }), []);
 
-  useEffect(() => {
-    const atualizarHora = () => setHoraAtual(new Date().toLocaleTimeString('pt-BR'));
-    const buscarPrevisaoTempo = async () => {
-      try {
-        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-23.55&longitude=-46.63&current_weather=true');
-        const data = await res.json();
-        const { temperature, weathercode } = data.current_weather;
-        setTemperatura(temperature);
-        setIconeClima(weatherIcons[weathercode] || '🌡️');
-      } catch (err) {
-        console.error('Erro ao buscar clima:', err);
-      }
-    };
-
-    atualizarHora();
-    const id = setInterval(atualizarHora, 1000);
-    buscarPrevisaoTempo();
-
-    // Verificar conexão com o servidor
-    verificarConexaoServidor();
-    
-    // buscar funcionarios e registros do backend
-    fetchDados();
-
-    return () => clearInterval(id);
-  }, [weatherIcons]);
-
-  // Função para verificar conexão com o servidor
-  const verificarConexaoServidor = async () => {
+  // Função para verificar conexão com o servidor (useCallback)
+  const verificarConexaoServidor = useCallback(async () => {
     try {
       setStatusConexao('verificando');
-      const response = await fetch(`${API_URL}/`, {
+      // eslint-disable-next-line
+      await fetch(`${API_URL}/`, {
         method: 'HEAD',
         mode: 'no-cors'
       }).catch(async () => {
         // Se falhar com no-cors, tenta uma requisição GET normal
-        const res = await fetch(`${API_URL}/`);
-        return res;
+        await fetch(`${API_URL}/`);
       });
       
       setStatusConexao('conectado');
@@ -92,9 +66,9 @@ export default function PinPage() {
       // Tentar reconectar após 10 segundos
       setTimeout(verificarConexaoServidor, 10000);
     }
-  };
+  }, []);
 
-  const fetchDados = async () => {
+  const fetchDados = useCallback(async () => {
     try {
       const [resF, resR] = await Promise.all([
         fetch(`${API_URL}/funcionarios`),
@@ -104,13 +78,54 @@ export default function PinPage() {
       const funcs = await resF.json();
       const regs = await resR.json();
       setFuncionarios(funcs);
-      setRegistros(regs);
       setStatusConexao('conectado');
+      console.log('Registros carregados:', regs.length);
     } catch (e) {
       console.error('fetchDados PinPage', e);
       setStatusConexao('desconectado');
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const atualizarHora = () => setHoraAtual(new Date().toLocaleTimeString('pt-BR'));
+    
+    // Atualizar data da última atualização
+    const atualizarDataAtualizacao = () => {
+      const agora = new Date();
+      setUltimaAtualizacao(agora.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      }));
+    };
+    
+    const buscarPrevisaoTempo = async () => {
+      try {
+        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-23.55&longitude=-46.63&current_weather=true');
+        const data = await res.json();
+        const { temperature, weathercode } = data.current_weather;
+        setTemperatura(temperature);
+        setIconeClima(weatherIcons[weathercode] || '🌡️');
+      } catch (err) {
+        console.error('Erro ao buscar clima:', err);
+      }
+    };
+
+    atualizarHora();
+    atualizarDataAtualizacao();
+    const idHora = setInterval(atualizarHora, 1000);
+    buscarPrevisaoTempo();
+
+    // Verificar conexão com o servidor
+    verificarConexaoServidor();
+    
+    // buscar funcionarios e registros do backend
+    fetchDados();
+
+    return () => {
+      clearInterval(idHora);
+    };
+  }, [weatherIcons, verificarConexaoServidor, fetchDados]);
 
   useEffect(() => {
     if (mensagem) {
@@ -153,10 +168,10 @@ export default function PinPage() {
 
     const agora = new Date();
     
-    // CORREÇÃO: Formato de data DD/MM/AAAA (como está no seu MongoDB)
+    
     const data = agora.toLocaleDateString('pt-BR');
     
-    // CORREÇÃO: Formato de horário HH:MM:SS (como está no seu MongoDB)
+   
     const horario = agora.toLocaleTimeString('pt-BR', { 
       hour: '2-digit', 
       minute: '2-digit', 
@@ -258,21 +273,24 @@ export default function PinPage() {
 
   const teclas = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'OK'];
 
-  // Função para obter o texto e cor do status
-  const getStatusInfo = () => {
-    switch (statusConexao) {
-      case 'conectado':
-        return { texto: '✅ Conectado', cor: 'bg-green-500' };
-      case 'desconectado':
-        return { texto: '❌ Desconectado', cor: 'bg-red-500' };
-      case 'verificando':
-        return { texto: '⏳ Verificando...', cor: 'bg-yellow-500' };
-      default:
-        return { texto: '❓ Desconhecido', cor: 'bg-gray-500' };
+  // Funções para status de conexão
+  const getStatusColor = () => {
+    switch(statusConexao) {
+      case 'conectado': return 'bg-green-500';
+      case 'desconectado': return 'bg-red-500';
+      case 'verificando': return 'bg-yellow-500';
+      default: return 'bg-gray-500';
     }
   };
 
-  const statusInfo = getStatusInfo();
+  const getStatusIcon = () => {
+    switch(statusConexao) {
+      case 'conectado': return <FaWifi className="text-lg" />;
+      case 'desconectado': return <FaExclamationTriangle className="text-lg" />;
+      case 'verificando': return <FaSync className="text-lg animate-spin" />;
+      default: return <FaSync className="text-lg" />;
+    }
+  };
 
   // Preloader modernizado com 3 segundos de animação
   if (loading) {
@@ -399,16 +417,14 @@ export default function PinPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-500 text-white flex flex-col items-center justify-center px-4 py-6">
-
-      {/* Status da conexão - Adicionado no topo */}
+    <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-500 text-white flex flex-col items-center justify-center px-4 py-6 relative">
       <div className="absolute top-4 right-4 z-10">
-        <div className={`${statusInfo.cor} text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-2 shadow-lg`}>
-          <span className="text-xs">🔌</span>
-          <span>{statusInfo.texto}</span>
-          {statusConexao === 'verificando' && (
-            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-          )}
+        <div className={`${getStatusColor()} text-white px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg transition-all`}>
+          {getStatusIcon()}
+          <span className="font-semibold">
+            {statusConexao === 'conectado' ? 'Conectado' : 
+             statusConexao === 'desconectado' ? 'Desconectado' : 'Verificando...'}
+          </span>
         </div>
       </div>
 
@@ -434,8 +450,10 @@ export default function PinPage() {
             key={t}
             onClick={() => handleTecla(t)}
             disabled={bloqueado && t === 'OK'}
-            className={`w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full font-bold text-xl shadow flex items-center justify-center
-              ${t === 'OK' ? 'bg-green-600' : t === 'C' ? 'bg-red-600' : 'bg-white text-blue-900'}`}
+            className={`w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full font-bold text-xl shadow flex items-center justify-center transition-all hover:scale-105
+              ${t === 'OK' ? 'bg-green-600 hover:bg-green-700' : 
+                t === 'C' ? 'bg-red-600 hover:bg-red-700' : 
+                'bg-white text-blue-900 hover:bg-blue-100'}`}
           >
             {t}
           </button>
@@ -443,38 +461,40 @@ export default function PinPage() {
       </div>
 
       {mensagem && (
-        <div className="mt-6 bg-yellow-400 text-black px-6 py-3 rounded-xl text-lg text-center max-w-xs sm:max-w-md font-bold">
+        <div className="mt-6 bg-yellow-400 text-black px-6 py-3 rounded-xl text-lg text-center max-w-xs sm:max-w-md font-bold animate-pulse">
           {mensagem}
         </div>
       )}
 
       {mostrarTipo && (
-        <div className="mt-6 bg-white/20 p-4 rounded-lg text-center">
-          <h2 className="text-lg mb-2 font-bold">Selecione o tipo de registro:</h2>
-          <div className="flex flex-wrap gap-2 justify-center">
+        <div className="mt-6 bg-white/20 backdrop-blur-sm p-6 rounded-xl text-center shadow-lg">
+          <h2 className="text-xl mb-4 font-bold">Selecione o tipo de registro:</h2>
+          <div className="grid grid-cols-2 gap-3 max-w-md">
             {['entrada', 'intervalo ida', 'intervalo volta', 'saida'].map(tipo => (
               <button
                 key={tipo}
                 onClick={() => registrarPonto(tipo)}
-                className="bg-white text-blue-900 font-bold px-4 py-2 rounded-lg hover:bg-blue-200"
+                className="bg-white text-blue-900 font-bold px-4 py-3 rounded-lg hover:bg-blue-200 transition-all hover:scale-105"
               >
-                {tipo.toUpperCase()}
+                {tipo.charAt(0).toUpperCase() + tipo.slice(1)}
               </button>
             ))}
           </div>
         </div>
       )}
 
-      <button
+        <button
         onClick={() => navigate('/login')}
         className="mt-6 bg-black/70 hover:bg-black text-white px-6 py-3 rounded-xl text-lg shadow-lg"
       >
         ⚙️ Área Admin
       </button>
 
-      <footer className="text-white text-center py-2 text-sm shadow-md mt-10">
-        Desenvolvido por <span className="font-semibold">Isac Miranda ©</span> - 2025
-      </footer>
+      {/* Footer */}
+      <div className="mt-10 text-center text-gray-200 text-sm">
+        <p>Desenvolvido por <span className="font-semibold text-blue-300">Isac Miranda ©</span> - 2025</p>
+        <p className="mt-1">Última atualização: {ultimaAtualizacao || 'Carregando...'}</p>
+      </div>
     </div>
   );
 }
