@@ -15,7 +15,7 @@ export default function PinPage() {
   const [mostrarTipo, setMostrarTipo] = useState(false);
   const [funcionarioAtual, setFuncionarioAtual] = useState(null);
 
-  //  PRELOADER
+  // PRELOADER
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 3000);
@@ -96,14 +96,22 @@ export default function PinPage() {
     if (!funcionarioAtual) return;
 
     const agora = new Date();
+    
+    // CORREÇÃO: Formato de data DD/MM/AAAA (como está no seu MongoDB)
     const data = agora.toLocaleDateString('pt-BR');
-    const horario = agora.toLocaleTimeString('pt-BR');
+    
+    // CORREÇÃO: Formato de horário HH:MM:SS (como está no seu MongoDB)
+    const horario = agora.toLocaleTimeString('pt-BR', { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit' 
+    });
 
     const novoRegistro = {
-      pin,
+      pin: funcionarioAtual.pin, // Usar o pin do funcionário (string)
       nome: funcionarioAtual.nome,
-      data,
-      horario,
+      data, // Formato: "DD/MM/AAAA"
+      horario, // Formato: "HH:MM:SS"
       tipo,
     };
 
@@ -113,10 +121,13 @@ export default function PinPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(novoRegistro)
       });
+      
       if (!res.ok) {
-        alert('Erro ao registrar ponto');
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.error || 'Erro ao registrar ponto');
         return;
       }
+      
       // atualizar lista local
       await fetchDados();
 
@@ -148,6 +159,7 @@ export default function PinPage() {
       setTimeout(() => setBloqueado(false), 2000);
     } catch (e) {
       console.error('registrarPonto', e);
+      alert('Erro de conexão ao registrar ponto');
     }
   };
 

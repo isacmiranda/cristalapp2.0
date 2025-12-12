@@ -41,7 +41,7 @@ export default function AdminPage() {
       const funcs = await resF.json();
       const regs = await resR.json();
 
-      // normaliza datas (se vierem em ISO yyyy-mm-dd ou dd/mm/yyyy)
+      // Normaliza datas
       const normalizedRegs = regs.map(r => ({
         ...r,
         data: r.data || '',
@@ -84,7 +84,7 @@ export default function AdminPage() {
     setPaginaAtual(1);
   };
 
-  // ---------- FUNCIONÁRIOS (API) ----------
+  // ---------- FUNCIONÁRIOS ----------
   const adicionarFuncionario = async () => {
     if (!novoFuncionario.nome || !novoFuncionario.pin) return;
     try {
@@ -94,15 +94,11 @@ export default function AdminPage() {
         body: JSON.stringify(novoFuncionario)
       });
       if (!res.ok) {
-        const err = await res.json().catch(()=>({error:'Erro'}));
+        const err = await res.json().catch(() => ({ error: 'Erro' }));
         alert(err.error || 'Erro ao adicionar funcionário');
         return;
       }
-      const created = await res.json();
-      // buscar lista atualizada
-      const resF = await fetch(`${API_URL}/funcionarios`);
-      const funcs = await resF.json();
-      setFuncionarios(funcs);
+      await fetchDados();
       setNovoFuncionario({ nome: '', pin: '' });
     } catch (e) {
       console.error('adicionarFuncionario', e);
@@ -117,22 +113,26 @@ export default function AdminPage() {
     if (!nomeNovo || !pinNovo) return;
 
     try {
-      const res = await fetch(`${API_URL}/funcionarios/${atual.id}`, {
+      // Editar funcionário
+      const res = await fetch(`${API_URL}/funcionarios/${atual._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nome: nomeNovo, pin: pinNovo })
       });
+      
       if (!res.ok) {
-        const err = await res.json().catch(()=>({error:'Erro'}));
+        const err = await res.json().catch(() => ({ error: 'Erro' }));
         alert(err.error || 'Erro ao editar funcionário');
         return;
       }
-      // atualizar registros que contenham o pin antigo: buscar todos registros, mapear e atualizar via PUT cada um que tenha pin antigo
+      
+      // Atualizar registros que contenham o pin antigo
       const resRegs = await fetch(`${API_URL}/registros`);
       const regs = await resRegs.json();
       const regsParaAtualizar = regs.filter(r => String(r.pin) === String(atual.pin));
+      
       for (const r of regsParaAtualizar) {
-        await fetch(`${API_URL}/registros/${r.id}`, {
+        await fetch(`${API_URL}/registros/${r._id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -146,28 +146,37 @@ export default function AdminPage() {
       }
 
       await fetchDados();
+      alert('Funcionário e registros atualizados com sucesso!');
     } catch (e) {
       console.error('editarFuncionario', e);
+      alert('Erro ao editar funcionário');
     }
   };
 
   const removerFuncionario = async (index) => {
     const atual = funcionarios[index];
     if (!atual) return;
-    if (!window.confirm(`Remover ${atual.nome}?`)) return;
+    if (!window.confirm(`Remover ${atual.nome}? Esta ação não pode ser desfeita.`)) return;
     try {
-      const res = await fetch(`${API_URL}/funcionarios/${atual.id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_URL}/funcionarios/${atual._id}`, { 
+        method: 'DELETE' 
+      });
+      
       if (!res.ok) {
-        alert('Erro ao remover funcionário');
+        const err = await res.json().catch(() => ({ error: 'Erro' }));
+        alert(err.error || 'Erro ao remover funcionário');
         return;
       }
+      
       await fetchDados();
+      alert('Funcionário removido com sucesso!');
     } catch (e) {
       console.error('removerFuncionario', e);
+      alert('Erro ao remover funcionário');
     }
   };
 
-  // ---------- REGISTROS (API) ----------
+  // ---------- REGISTROS ----------
   const adicionarRegistro = async () => {
     if (
       !novoRegistro.data ||
@@ -175,33 +184,54 @@ export default function AdminPage() {
       !novoRegistro.nome ||
       !novoRegistro.tipo ||
       !novoRegistro.pin
-    ) return;
+    ) {
+      alert('Preencha todos os campos!');
+      return;
+    }
 
     try {
-      // enviar para a API
-      const payload = { ...novoRegistro };
+      // Converter data para formato DD/MM/AAAA se necessário
+      let dataFormatada = novoRegistro.data;
+      if (dataFormatada.includes('-')) {
+        // Converte de YYYY-MM-DD para DD/MM/AAAA
+        const [year, month, day] = dataFormatada.split('-');
+        dataFormatada = `${day}/${month}/${year}`;
+      }
+
+      const payload = { 
+        ...novoRegistro, 
+        data: dataFormatada 
+      };
+      
       const res = await fetch(`${API_URL}/registros`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+      
       if (!res.ok) {
-        alert('Erro ao adicionar registro');
+        const err = await res.json().catch(() => ({ error: 'Erro ao adicionar registro' }));
+        alert(err.error || 'Erro ao adicionar registro');
         return;
       }
+      
       await fetchDados();
       setNovoRegistro({ data: '', horario: '', nome: '', tipo: '', pin: '' });
+      alert('Registro adicionado com sucesso!');
     } catch (e) {
       console.error('adicionarRegistro', e);
+      alert('Erro ao adicionar registro');
     }
   };
 
   const editarRegistro = async (indexGlobal) => {
     const atual = registros[indexGlobal];
     if (!atual) return;
-    const data = prompt('Nova data (DD/MM/AAAA ou YYYY-MM-DD):', atual.data);
-    const horario = prompt('Novo horário:', atual.horario);
-    const tipo = prompt('Novo tipo (entrada/saida):', atual.tipo);
+    
+    const data = prompt('Nova data (DD/MM/AAAA):', atual.data);
+    const horario = prompt('Novo horário (HH:MM:SS):', atual.horario);
+    const tipo = prompt('Novo tipo (entrada/saida/intervalo ida/intervalo volta):', atual.tipo);
+    
     if (data && horario && tipo) {
       try {
         const body = {
@@ -211,18 +241,24 @@ export default function AdminPage() {
           tipo,
           pin: atual.pin
         };
-        const res = await fetch(`${API_URL}/registros/${atual.id}`, {
+        
+        const res = await fetch(`${API_URL}/registros/${atual._id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         });
+        
         if (!res.ok) {
-          alert('Erro ao atualizar registro');
+          const err = await res.json().catch(() => ({ error: 'Erro' }));
+          alert(err.error || 'Erro ao atualizar registro');
           return;
         }
+        
         await fetchDados();
+        alert('Registro atualizado com sucesso!');
       } catch (e) {
         console.error('editarRegistro', e);
+        alert('Erro ao atualizar registro');
       }
     }
   };
@@ -230,16 +266,25 @@ export default function AdminPage() {
   const removerRegistro = async (indexGlobal) => {
     const reg = registros[indexGlobal];
     if (!reg) return;
-    if (!window.confirm(`Excluir registro de ${reg.nome} em ${reg.data} ${reg.horario}?`)) return;
+    
+    if (!window.confirm(`Excluir registro de ${reg.nome} em ${reg.data} ${reg.horario} (${reg.tipo})?`)) return;
+    
     try {
-      const res = await fetch(`${API_URL}/registros/${reg.id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_URL}/registros/${reg._id}`, { 
+        method: 'DELETE' 
+      });
+      
       if (!res.ok) {
-        alert('Erro ao excluir registro');
+        const err = await res.json().catch(() => ({ error: 'Erro' }));
+        alert(err.error || 'Erro ao excluir registro');
         return;
       }
+      
       await fetchDados();
+      alert('Registro excluído com sucesso!');
     } catch (e) {
       console.error('removerRegistro', e);
+      alert('Erro ao excluir registro');
     }
   };
 
@@ -248,9 +293,13 @@ export default function AdminPage() {
     const parseData = d => {
       if (!d) return new Date(0);
       if (d.includes('-')) return new Date(d); // yyyy-mm-dd
-      if (d.includes('/')) return new Date(d.split('/').reverse().join('-')); // dd/mm/yyyy
+      if (d.includes('/')) {
+        const [day, month, year] = d.split('/');
+        return new Date(`${year}-${month}-${day}`);
+      }
       return new Date(d);
     };
+    
     let res = parseData(b.data) - parseData(a.data); // Data descendente
     if (res === 0) res = (a.horario || '').localeCompare(b.horario || '');
     if (res === 0) res = (a.nome || '').localeCompare(b.nome || '');
@@ -290,14 +339,20 @@ export default function AdminPage() {
   const parseForSort = (d) => {
     if (!d) return '';
     if (d.includes('-')) return new Date(d);
-    if (d.includes('/')) return new Date(d.split('/').reverse().join('-'));
+    if (d.includes('/')) {
+      const [day, month, year] = d.split('/');
+      return new Date(`${year}-${month}-${day}`);
+    }
     return new Date(d);
   };
 
   const parseDataForFilter = (d) => {
     if (!d) return new Date(0);
     if (d.includes('-')) return new Date(d);
-    if (d.includes('/')) return new Date(d.split('/').reverse().join('-'));
+    if (d.includes('/')) {
+      const [day, month, year] = d.split('/');
+      return new Date(`${year}-${month}-${day}`);
+    }
     return new Date(d);
   };
 
@@ -343,17 +398,44 @@ export default function AdminPage() {
       <div className="bg-white text-black rounded-lg shadow p-4 w-full max-w-2xl mt-4 no-print">
         <h2 className="text-lg font-bold mb-2">Gerenciar Funcionários</h2>
         <div className="flex gap-2 mb-2 flex-wrap">
-          <input type="text" placeholder="Nome" value={novoFuncionario.nome} onChange={e => setNovoFuncionario({ ...novoFuncionario, nome: e.target.value })} className="border p-2 rounded w-full sm:w-auto" />
-          <input type="text" placeholder="PIN" value={novoFuncionario.pin} onChange={e => setNovoFuncionario({ ...novoFuncionario, pin: e.target.value })} className="border p-2 rounded w-full sm:w-auto" />
-          <button onClick={adicionarFuncionario} className="bg-blue-600 text-white px-4 py-2 rounded">Adicionar</button>
+          <input 
+            type="text" 
+            placeholder="Nome" 
+            value={novoFuncionario.nome} 
+            onChange={e => setNovoFuncionario({ ...novoFuncionario, nome: e.target.value })} 
+            className="border p-2 rounded w-full sm:w-auto" 
+          />
+          <input 
+            type="text" 
+            placeholder="PIN" 
+            value={novoFuncionario.pin} 
+            onChange={e => setNovoFuncionario({ ...novoFuncionario, pin: e.target.value })} 
+            className="border p-2 rounded w-full sm:w-auto" 
+          />
+          <button 
+            onClick={adicionarFuncionario} 
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Adicionar
+          </button>
         </div>
         <ul className="space-y-2">
           {funcionarios.map((f, i) => (
-            <li key={f.id || i} className="flex justify-between items-center border p-2 rounded">
+            <li key={f._id} className="flex justify-between items-center border p-2 rounded">
               <span>{f.nome} (PIN: {f.pin})</span>
               <div className="space-x-2">
-                <button onClick={() => editarFuncionario(i)} className="bg-yellow-500 px-2 py-1 rounded">✏️</button>
-                <button onClick={() => removerFuncionario(i)} className="bg-red-500 px-2 py-1 rounded">🗑️</button>
+                <button 
+                  onClick={() => editarFuncionario(i)} 
+                  className="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded"
+                >
+                  ✏️
+                </button>
+                <button 
+                  onClick={() => removerFuncionario(i)} 
+                  className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded"
+                >
+                  🗑️
+                </button>
               </div>
             </li>
           ))}
@@ -362,36 +444,102 @@ export default function AdminPage() {
 
       {/* Filtros */}
       <div className="flex flex-wrap justify-center gap-2 my-4 w-full max-w-4xl no-print">
-        <input type="date" value={filtroInicio} onChange={e => setFiltroInicio(e.target.value)} className="p-2 rounded text-black w-full sm:w-auto" />
-        <input type="date" value={filtroFim} onChange={e => setFiltroFim(e.target.value)} className="p-2 rounded text-black w-full sm:w-auto" />
-        <input type="text" placeholder="Filtrar por nome" value={filtroNome} onChange={e => setFiltroNome(e.target.value)} className="p-2 rounded text-black w-full sm:w-auto" />
-        <input type="text" placeholder="Filtrar por PIN" value={filtroPIN} onChange={e => setFiltroPIN(e.target.value)} className="p-2 rounded text-black w-full sm:w-auto" />
-        <button onClick={handleBuscar} className="bg-green-600 px-4 py-2 rounded">Buscar</button>
-        <button onClick={handleLimpar} className="bg-gray-600 px-4 py-2 rounded">Limpar</button>
+        <input 
+          type="date" 
+          value={filtroInicio} 
+          onChange={e => setFiltroInicio(e.target.value)} 
+          className="p-2 rounded text-black w-full sm:w-auto" 
+        />
+        <input 
+          type="date" 
+          value={filtroFim} 
+          onChange={e => setFiltroFim(e.target.value)} 
+          className="p-2 rounded text-black w-full sm:w-auto" 
+        />
+        <input 
+          type="text" 
+          placeholder="Filtrar por nome" 
+          value={filtroNome} 
+          onChange={e => setFiltroNome(e.target.value)} 
+          className="p-2 rounded text-black w-full sm:w-auto" 
+        />
+        <input 
+          type="text" 
+          placeholder="Filtrar por PIN" 
+          value={filtroPIN} 
+          onChange={e => setFiltroPIN(e.target.value)} 
+          className="p-2 rounded text-black w-full sm:w-auto" 
+        />
+        <button 
+          onClick={handleBuscar} 
+          className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded"
+        >
+          Buscar
+        </button>
+        <button 
+          onClick={handleLimpar} 
+          className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded"
+        >
+          Limpar
+        </button>
       </div>
 
       {/* Adicionar Registro */}
       <div className="bg-white text-black rounded-lg shadow p-4 w-full max-w-4xl mb-4 no-print">
         <h2 className="text-lg font-bold mb-2">Adicionar Registro</h2>
         <div className="flex flex-wrap gap-2">
-          <input type="date" value={novoRegistro.data} onChange={e => setNovoRegistro({ ...novoRegistro, data: e.target.value })} className="p-2 rounded border w-full sm:w-auto" />
-          <input type="time" value={novoRegistro.horario} onChange={e => setNovoRegistro({ ...novoRegistro, horario: e.target.value })} className="p-2 rounded border w-full sm:w-auto" />
-          <input type="text" placeholder="Nome" value={novoRegistro.nome} onChange={e => setNovoRegistro({ ...novoRegistro, nome: e.target.value })} className="p-2 rounded border w-full sm:w-auto" />
-          <select value={novoRegistro.tipo} onChange={e => setNovoRegistro({ ...novoRegistro, tipo: e.target.value })} className="p-2 rounded border w-full sm:w-auto">
+          <input 
+            type="date" 
+            value={novoRegistro.data} 
+            onChange={e => setNovoRegistro({ ...novoRegistro, data: e.target.value })} 
+            className="p-2 rounded border w-full sm:w-auto" 
+          />
+          <input 
+            type="time" 
+            value={novoRegistro.horario} 
+            onChange={e => setNovoRegistro({ ...novoRegistro, horario: e.target.value })} 
+            className="p-2 rounded border w-full sm:w-auto" 
+          />
+          <input 
+            type="text" 
+            placeholder="Nome" 
+            value={novoRegistro.nome} 
+            onChange={e => setNovoRegistro({ ...novoRegistro, nome: e.target.value })} 
+            className="p-2 rounded border w-full sm:w-auto" 
+          />
+          <select 
+            value={novoRegistro.tipo} 
+            onChange={e => setNovoRegistro({ ...novoRegistro, tipo: e.target.value })} 
+            className="p-2 rounded border w-full sm:w-auto"
+          >
             <option value="">Tipo</option>
             <option value="entrada">Entrada</option>
             <option value="saida">Saída</option>
             <option value="intervalo ida">Intervalo Ida</option>
             <option value="intervalo volta">Intervalo Volta</option>
           </select>
-          <input type="text" placeholder="PIN" value={novoRegistro.pin} onChange={e => setNovoRegistro({ ...novoRegistro, pin: e.target.value })} className="p-2 rounded border w-full sm:w-auto" />
-          <button onClick={adicionarRegistro} className="bg-green-600 text-white px-4 py-2 rounded">Adicionar</button>
+          <input 
+            type="text" 
+            placeholder="PIN" 
+            value={novoRegistro.pin} 
+            onChange={e => setNovoRegistro({ ...novoRegistro, pin: e.target.value })} 
+            className="p-2 rounded border w-full sm:w-auto" 
+          />
+          <button 
+            onClick={adicionarRegistro} 
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
+          >
+            Adicionar
+          </button>
         </div>
       </div>
 
       {/* Botão imprimir */}
       <div className="flex justify-end w-full max-w-4xl mb-2 no-print">
-        <button onClick={() => window.print()} className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-500">
+        <button 
+          onClick={() => window.print()} 
+          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded"
+        >
           🖨️ Imprimir Tabela
         </button>
       </div>
@@ -399,7 +547,9 @@ export default function AdminPage() {
       {/* Tabela */}
       <div className="overflow-x-auto w-full max-w-4xl">
         <table className="min-w-full bg-white text-black rounded shadow">
-          <caption className="text-lg font-bold p-2">Registro de Ponto - Cristal Acquacenter</caption>
+          <caption className="text-lg font-bold p-2">
+            Registro de Ponto - Cristal Acquacenter ({registros.length} registros)
+          </caption>
           <thead>
             <tr className="bg-blue-200">
               <th className="p-2 cursor-pointer" onClick={() => ordenarPor('data')}>
@@ -414,22 +564,34 @@ export default function AdminPage() {
               <th className="p-2 cursor-pointer" onClick={() => ordenarPor('tipo')}>
                 Tipo {ordenacao.campo === 'tipo' ? (ordenacao.direcao === 'asc' ? '⬆️' : '⬇️') : ''}
               </th>
+              <th className="p-2">PIN</th>
               <th className="p-2 no-print">Editar</th>
               <th className="p-2 no-print">Excluir</th>
             </tr>
           </thead>
           <tbody>
             {registrosExibidos.map((r, i) => (
-              <tr key={r.id || i} className="border-b">
+              <tr key={r._id} className="border-b hover:bg-gray-50">
                 <td className="p-2">{formatDisplayDate(r.data)}</td>
                 <td className="p-2">{r.horario}</td>
                 <td className="p-2">{r.nome}</td>
                 <td className="p-2">{r.tipo}</td>
+                <td className="p-2">{r.pin}</td>
                 <td className="p-2 no-print">
-                  <button onClick={() => editarRegistro((paginaAtual - 1) * registrosPorPagina + i)} className="bg-yellow-400 px-2 py-1 rounded">✏️</button>
+                  <button 
+                    onClick={() => editarRegistro((paginaAtual - 1) * registrosPorPagina + i)} 
+                    className="bg-yellow-400 hover:bg-yellow-500 px-2 py-1 rounded"
+                  >
+                    ✏️
+                  </button>
                 </td>
                 <td className="p-2 no-print">
-                  <button onClick={() => removerRegistro((paginaAtual - 1) * registrosPorPagina + i)} className="bg-red-400 px-2 py-1 rounded">🗑️</button>
+                  <button 
+                    onClick={() => removerRegistro((paginaAtual - 1) * registrosPorPagina + i)} 
+                    className="bg-red-400 hover:bg-red-500 px-2 py-1 rounded"
+                  >
+                    🗑️
+                  </button>
                 </td>
               </tr>
             ))}
@@ -438,15 +600,27 @@ export default function AdminPage() {
       </div>
 
       {/* Paginação */}
-      <div className="flex justify-center space-x-2 my-4 no-print">
-        <button onClick={() => setPaginaAtual(paginaAtual - 1)} disabled={paginaAtual === 1} className="bg-gray-600 text-white px-4 py-2 rounded disabled:opacity-50">
-          Anterior
-        </button>
-        <span>{paginaAtual} de {totalPaginas}</span>
-        <button onClick={() => setPaginaAtual(paginaAtual + 1)} disabled={paginaAtual === totalPaginas} className="bg-gray-600 text-white px-4 py-2 rounded disabled:opacity-50">
-          Próxima
-        </button>
-      </div>
+      {totalPaginas > 1 && (
+        <div className="flex justify-center space-x-2 my-4 no-print">
+          <button 
+            onClick={() => setPaginaAtual(paginaAtual - 1)} 
+            disabled={paginaAtual === 1} 
+            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Anterior
+          </button>
+          <span className="px-4 py-2">
+            Página {paginaAtual} de {totalPaginas}
+          </span>
+          <button 
+            onClick={() => setPaginaAtual(paginaAtual + 1)} 
+            disabled={paginaAtual === totalPaginas} 
+            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Próxima
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -454,6 +628,10 @@ export default function AdminPage() {
 // ---------- helpers ----------
 function formatDisplayDate(d) {
   if (!d) return '';
-  if (d.includes('-')) return d.split('-').reverse().join('/');
+  if (d.includes('-')) {
+    // Converte de YYYY-MM-DD para DD/MM/AAAA
+    const [year, month, day] = d.split('-');
+    return `${day}/${month}/${year}`;
+  }
   return d;
 }
