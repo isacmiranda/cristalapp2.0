@@ -383,7 +383,7 @@ export default function AdminPage() {
     }
   };
 
-  // Função para gerar PDF da tabela com resumo (apenas registros filtrados)
+  // Função para gerar PDF da tabela com resumo
   const gerarPDF = async () => {
     try {
       const html2canvas = (await import('html2canvas')).default;
@@ -468,7 +468,7 @@ export default function AdminPage() {
       `;
       container.appendChild(resumoElement);
       
-      // Clonar a tabela (que já contém apenas os registros filtrados)
+      // Clonar a tabela
       const tabelaClone = tabelaElement.cloneNode(true);
       
       // Remover botões de ação
@@ -689,7 +689,7 @@ export default function AdminPage() {
     window.location.reload();
   };
 
-  // Função de ordenação
+  // Função de ordenação - MAIS RECENTE PRIMEIRO
   const multiSort = (a, b) => {
     const parseData = d => {
       if (!d) return new Date(0);
@@ -701,10 +701,18 @@ export default function AdminPage() {
       return new Date(d);
     };
     
+    // Ordenar por data (mais recente primeiro - DESC)
     let res = parseData(b.data) - parseData(a.data);
-    if (res === 0) res = (a.horario || '').localeCompare(b.horario || '');
+    
+    // Se mesma data, ordenar por horário (mais recente primeiro)
+    if (res === 0) res = b.horario.localeCompare(a.horario);
+    
+    // Se mesmo horário, ordenar por nome
     if (res === 0) res = (a.nome || '').localeCompare(b.nome || '');
+    
+    // Se mesmo nome, ordenar por tipo
     if (res === 0) res = (a.tipo || '').localeCompare(b.tipo || '');
+    
     return res;
   };
 
@@ -1415,23 +1423,4 @@ function formatDisplayDate(d) {
     return `${day}/${month}/${year}`;
   }
   return d;
-}
-
-// Função multiSort definida no escopo correto
-function multiSort(a, b) {
-  const parseData = d => {
-    if (!d) return new Date(0);
-    if (d.includes('-')) return new Date(d);
-    if (d.includes('/')) {
-      const [day, month, year] = d.split('/');
-      return new Date(`${year}-${month}-${day}`);
-    }
-    return new Date(d);
-  };
-  
-  let res = parseData(b.data) - parseData(a.data);
-  if (res === 0) res = (a.horario || '').localeCompare(b.horario || '');
-  if (res === 0) res = (a.nome || '').localeCompare(b.nome || '');
-  if (res === 0) res = (a.tipo || '').localeCompare(b.tipo || '');
-  return res;
 }
