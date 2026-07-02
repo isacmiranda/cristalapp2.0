@@ -383,7 +383,7 @@ export default function AdminPage() {
     }
   };
 
-  // Função para gerar PDF da tabela com resumo
+  // Função para gerar PDF da tabela
   const gerarPDF = async () => {
     try {
       const html2canvas = (await import('html2canvas')).default;
@@ -395,131 +395,55 @@ export default function AdminPage() {
         return;
       }
       
-      // Criar um container com o mesmo conteúdo que aparece na impressão
-      const container = document.createElement('div');
-      container.style.padding = '20px';
-      container.style.backgroundColor = 'white';
-      container.style.color = 'black';
-      container.style.fontFamily = 'Arial, sans-serif';
-      container.style.width = '800px';
-      
-      // Título
-      const titulo = document.createElement('h1');
-      titulo.textContent = 'Registro de Ponto - Cristal Acquacenter';
-      titulo.style.textAlign = 'center';
-      titulo.style.marginBottom = '15px';
-      titulo.style.fontSize = '24px';
-      titulo.style.fontWeight = 'bold';
-      container.appendChild(titulo);
-      
-      // Informações com período filtrado
-      const info = document.createElement('div');
-      info.style.marginBottom = '15px';
-      info.style.fontSize = '14px';
-      info.style.textAlign = 'center';
-      
-      const dataGeracao = new Date().toLocaleDateString('pt-BR');
-      const horaGeracao = new Date().toLocaleTimeString('pt-BR');
-      
-      // Mostrar informações do filtro
-      let filtroInfo = '';
-      if (filtroInicio || filtroFim || filtroNome || filtroPIN) {
-        filtroInfo = 'Filtros aplicados: ';
-        if (filtroInicio) filtroInfo += `De ${filtroInicio} `;
-        if (filtroFim) filtroInfo += `Até ${filtroFim} `;
-        if (filtroNome) filtroInfo += `Nome: ${filtroNome} `;
-        if (filtroPIN) filtroInfo += `PIN: ${filtroPIN}`;
-      }
-      
-      info.innerHTML = `
-        <div>Gerado em: ${dataGeracao} às ${horaGeracao}</div>
-        <div>Total de registros: ${registros.length}</div>
-        ${filtroInfo ? `<div>${filtroInfo}</div>` : '<div>Todos os registros</div>'}
-      `;
-      container.appendChild(info);
-      
-      // Resumo APENAS dos registros filtrados
-      const resumoElement = document.createElement('div');
-      resumoElement.style.margin = '20px 0';
-      resumoElement.style.padding = '15px';
-      resumoElement.style.backgroundColor = '#f0f0f0';
-      resumoElement.style.borderRadius = '8px';
-      resumoElement.style.fontSize = '14px';
-      resumoElement.style.textAlign = 'center';
-      resumoElement.innerHTML = `
-        <strong style="font-size: 16px;">📊 Resumo do Período ${filtroInfo ? 'Filtrado' : 'Total'}</strong><br><br>
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 600px; margin: 0 auto;">
-          <div style="background: #d4edda; padding: 10px; border-radius: 4px;">
-            <strong>✅ Entradas:</strong> ${resumo.entrada}
-          </div>
-          <div style="background: #fff3cd; padding: 10px; border-radius: 4px;">
-            <strong>⏰ Início Intervalo:</strong> ${resumo.intervaloIda}
-          </div>
-          <div style="background: #d1ecf1; padding: 10px; border-radius: 4px;">
-            <strong>⏰ Retorno Intervalo:</strong> ${resumo.intervaloVolta}
-          </div>
-          <div style="background: #f8d7da; padding: 10px; border-radius: 4px;">
-            <strong>❌ Saídas:</strong> ${resumo.saida}
-          </div>
-        </div>
-        <div style="margin-top: 10px; font-weight: bold;">
-          Total de registros ${filtroInfo ? 'filtrados' : 'totais'}: ${registros.length}
-        </div>
-      `;
-      container.appendChild(resumoElement);
-      
-      // Clonar a tabela
       const tabelaClone = tabelaElement.cloneNode(true);
-      
-      // Remover botões de ação
       const botoesAcao = tabelaClone.querySelectorAll('.no-print');
       botoesAcao.forEach(botao => botao.remove());
       
-      // Remover também o resumo-print se existir no clone
-      const resumoPrint = tabelaClone.querySelector('.resumo-print');
-      if (resumoPrint) resumoPrint.remove();
-      
-      // Aplicar estilos à tabela
       tabelaClone.style.width = '100%';
       tabelaClone.style.borderCollapse = 'collapse';
-      tabelaClone.style.marginTop = '20px';
       
-      const thElements = tabelaClone.querySelectorAll('th');
-      thElements.forEach(th => {
-        th.style.backgroundColor = '#f0f0f0';
-        th.style.border = '1px solid #000';
-        th.style.padding = '10px';
-        th.style.fontWeight = 'bold';
-        th.style.textAlign = 'left';
-      });
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      container.style.width = '800px';
       
-      const tdElements = tabelaClone.querySelectorAll('td');
-      tdElements.forEach(td => {
-        td.style.border = '1px solid #000';
-        td.style.padding = '10px';
-        td.style.textAlign = 'left';
-      });
+      // Adicionar resumo ao container
+      const resumoElement = document.createElement('div');
+      resumoElement.style.padding = '10px';
+      resumoElement.style.marginBottom = '20px';
+      resumoElement.style.backgroundColor = '#f0f0f0';
+      resumoElement.style.borderRadius = '5px';
+      resumoElement.style.fontSize = '14px';
+      resumoElement.innerHTML = `
+        <h3 style="margin: 0 0 10px 0; font-weight: bold;">📊 Resumo do Período</h3>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+          <div style="background: #d4edda; padding: 8px; border-radius: 4px; text-align: center;">
+            <strong>✅ Entradas:</strong> ${resumo.entrada}
+          </div>
+          <div style="background: #fff3cd; padding: 8px; border-radius: 4px; text-align: center;">
+            <strong>⏰ Início Intervalo:</strong> ${resumo.intervaloIda}
+          </div>
+          <div style="background: #d1ecf1; padding: 8px; border-radius: 4px; text-align: center;">
+            <strong>⏰ Retorno Intervalo:</strong> ${resumo.intervaloVolta}
+          </div>
+          <div style="background: #f8d7da; padding: 8px; border-radius: 4px; text-align: center;">
+            <strong>❌ Saídas:</strong> ${resumo.saida}
+          </div>
+        </div>
+        <div style="margin-top: 10px; text-align: center; font-weight: bold;">
+          Total de registros: ${registros.length}
+        </div>
+      `;
       
+      container.appendChild(resumoElement);
       container.appendChild(tabelaClone);
-      
-      // Adicionar rodapé
-      const footer = document.createElement('div');
-      footer.style.marginTop = '20px';
-      footer.style.fontSize = '10px';
-      footer.style.textAlign = 'center';
-      footer.style.color = '#666';
-      footer.textContent = `Sistema de Ponto Cristal Acquacenter - Gerado em ${dataGeracao} às ${horaGeracao}`;
-      container.appendChild(footer);
-      
       document.body.appendChild(container);
       
       const canvas = await html2canvas(container, {
         scale: 2,
         backgroundColor: '#ffffff',
         useCORS: true,
-        logging: false,
-        width: 800,
-        height: container.scrollHeight
+        logging: false
       });
       
       document.body.removeChild(container);
@@ -528,25 +452,47 @@ export default function AdminPage() {
       const imgWidth = 280;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, 10, imgWidth, imgHeight);
+      const titulo = 'Registro de Ponto - Cristal Acquacenter';
+      const dataGeracao = new Date().toLocaleDateString('pt-BR');
+      const horaGeracao = new Date().toLocaleTimeString('pt-BR');
       
-      // Adicionar número de páginas
+      pdf.setFontSize(16);
+      pdf.text(titulo, 10, 10);
+      
+      pdf.setFontSize(10);
+      pdf.text(`Gerado em: ${dataGeracao} às ${horaGeracao}`, 10, 17);
+      pdf.text(`Total de registros: ${registros.length}`, 10, 22);
+      
+      let filtrosTexto = 'Filtros: ';
+      if (filtroInicio) filtrosTexto += `De ${filtroInicio} `;
+      if (filtroFim) filtrosTexto += `Até ${filtroFim} `;
+      if (filtroNome) filtrosTexto += `Nome: ${filtroNome} `;
+      if (filtroPIN) filtrosTexto += `PIN: ${filtroPIN} `;
+      
+      if (filtrosTexto.length > 10) {
+        pdf.text(filtrosTexto, 10, 27);
+      }
+      
+      // Adicionar resumo no PDF
+      pdf.setFontSize(11);
+      pdf.text('📊 Resumo do Período:', 10, 32);
+      pdf.setFontSize(10);
+      pdf.text(`✅ Entradas: ${resumo.entrada}    ⏰ Início Intervalo: ${resumo.intervaloIda}    ⏰ Retorno Intervalo: ${resumo.intervaloVolta}    ❌ Saídas: ${resumo.saida}`, 10, 38);
+      
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, 45, imgWidth, imgHeight);
+      
       const totalPages = pdf.internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
         pdf.setFontSize(8);
         pdf.text(
-          `Página ${i} de ${totalPages}`,
-          pdf.internal.pageSize.width - 30,
+          `Página ${i} de ${totalPages} - Sistema de Ponto Cristal Acquacenter`,
+          10,
           pdf.internal.pageSize.height - 10
         );
       }
       
-      const nomeArquivo = filtroInicio || filtroFim || filtroNome || filtroPIN ? 
-        `registro-ponto-filtrado-${dataGeracao.replace(/\//g, '-')}.pdf` : 
-        `registro-ponto-completo-${dataGeracao.replace(/\//g, '-')}.pdf`;
-      
-      pdf.save(nomeArquivo);
+      pdf.save(`registro-ponto-cristal-${dataGeracao.replace(/\//g, '-')}.pdf`);
       
       alert('✅ PDF gerado com sucesso!');
     } catch (error) {
@@ -595,48 +541,33 @@ export default function AdminPage() {
     const dataGeracao = new Date().toLocaleDateString('pt-BR');
     const horaGeracao = new Date().toLocaleTimeString('pt-BR');
     
-    let filtroInfo = '';
-    if (filtroInicio || filtroFim || filtroNome || filtroPIN) {
-      filtroInfo = 'Filtros aplicados: ';
-      if (filtroInicio) filtroInfo += `De ${filtroInicio} `;
-      if (filtroFim) filtroInfo += `Até ${filtroFim} `;
-      if (filtroNome) filtroInfo += `Nome: ${filtroNome} `;
-      if (filtroPIN) filtroInfo += `PIN: ${filtroPIN}`;
-    }
-    
     info.innerHTML = `
       <div>Gerado em: ${dataGeracao} às ${horaGeracao}</div>
       <div>Total de registros: ${registros.length}</div>
-      ${filtroInfo ? `<div>${filtroInfo}</div>` : '<div>Todos os registros</div>'}
+      ${filtroInicio || filtroFim || filtroNome || filtroPIN ? 
+        `<div>Filtros aplicados: 
+          ${filtroInicio ? `De ${filtroInicio} ` : ''}
+          ${filtroFim ? `Até ${filtroFim} ` : ''}
+          ${filtroNome ? `Nome: ${filtroNome} ` : ''}
+          ${filtroPIN ? `PIN: ${filtroPIN}` : ''}
+        </div>` : ''
+      }
     `;
     
     // Adicionar resumo para impressão
     const resumoElement = document.createElement('div');
     resumoElement.style.margin = '20px 0';
-    resumoElement.style.padding = '15px';
+    resumoElement.style.padding = '10px';
     resumoElement.style.backgroundColor = '#f0f0f0';
-    resumoElement.style.borderRadius = '8px';
+    resumoElement.style.borderRadius = '5px';
     resumoElement.style.fontSize = '14px';
     resumoElement.style.textAlign = 'center';
     resumoElement.innerHTML = `
-      <strong style="font-size: 16px;">📊 Resumo do Período ${filtroInfo ? 'Filtrado' : 'Total'}</strong><br><br>
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 600px; margin: 0 auto;">
-        <div style="background: #d4edda; padding: 10px; border-radius: 4px;">
-          <strong>✅ Entradas:</strong> ${resumo.entrada}
-        </div>
-        <div style="background: #fff3cd; padding: 10px; border-radius: 4px;">
-          <strong>⏰ Início Intervalo:</strong> ${resumo.intervaloIda}
-        </div>
-        <div style="background: #d1ecf1; padding: 10px; border-radius: 4px;">
-          <strong>⏰ Retorno Intervalo:</strong> ${resumo.intervaloVolta}
-        </div>
-        <div style="background: #f8d7da; padding: 10px; border-radius: 4px;">
-          <strong>❌ Saídas:</strong> ${resumo.saida}
-        </div>
-      </div>
-      <div style="margin-top: 10px; font-weight: bold;">
-        Total de registros ${filtroInfo ? 'filtrados' : 'totais'}: ${registros.length}
-      </div>
+      <strong>📊 Resumo do Período:</strong><br>
+      ✅ Entradas: ${resumo.entrada} | 
+      ⏰ Início Intervalo: ${resumo.intervaloIda} | 
+      ⏰ Retorno Intervalo: ${resumo.intervaloVolta} | 
+      ❌ Saídas: ${resumo.saida}
     `;
     
     // Adicionar estilos à tabela para impressão
@@ -649,16 +580,14 @@ export default function AdminPage() {
     thElements.forEach(th => {
       th.style.backgroundColor = '#f0f0f0';
       th.style.border = '1px solid #000';
-      th.style.padding = '10px';
+      th.style.padding = '8px';
       th.style.fontWeight = 'bold';
-      th.style.textAlign = 'left';
     });
     
     const tdElements = tabelaClone.querySelectorAll('td');
     tdElements.forEach(td => {
       td.style.border = '1px solid #000';
-      td.style.padding = '10px';
-      td.style.textAlign = 'left';
+      td.style.padding = '8px';
     });
     
     // Montar o conteúdo para impressão
@@ -666,15 +595,6 @@ export default function AdminPage() {
     printContainer.appendChild(info);
     printContainer.appendChild(resumoElement);
     printContainer.appendChild(tabelaClone);
-    
-    // Adicionar rodapé
-    const footer = document.createElement('div');
-    footer.style.marginTop = '20px';
-    footer.style.fontSize = '10px';
-    footer.style.textAlign = 'center';
-    footer.style.color = '#666';
-    footer.textContent = `Sistema de Ponto Cristal Acquacenter - Gerado em ${dataGeracao} às ${horaGeracao}`;
-    printContainer.appendChild(footer);
     
     // Substituir o conteúdo da página
     document.body.innerHTML = printContainer.outerHTML;
@@ -689,7 +609,7 @@ export default function AdminPage() {
     window.location.reload();
   };
 
-  // Função de ordenação - MAIS RECENTE PRIMEIRO
+  // Função de ordenação
   const multiSort = (a, b) => {
     const parseData = d => {
       if (!d) return new Date(0);
@@ -701,18 +621,10 @@ export default function AdminPage() {
       return new Date(d);
     };
     
-    // Ordenar por data (mais recente primeiro - DESC)
     let res = parseData(b.data) - parseData(a.data);
-    
-    // Se mesma data, ordenar por horário (mais recente primeiro)
-    if (res === 0) res = b.horario.localeCompare(a.horario);
-    
-    // Se mesmo horário, ordenar por nome
+    if (res === 0) res = (a.horario || '').localeCompare(b.horario || '');
     if (res === 0) res = (a.nome || '').localeCompare(b.nome || '');
-    
-    // Se mesmo nome, ordenar por tipo
     if (res === 0) res = (a.tipo || '').localeCompare(b.tipo || '');
-    
     return res;
   };
 
@@ -1423,4 +1335,23 @@ function formatDisplayDate(d) {
     return `${day}/${month}/${year}`;
   }
   return d;
+}
+
+// Função multiSort definida no escopo correto
+function multiSort(a, b) {
+  const parseData = d => {
+    if (!d) return new Date(0);
+    if (d.includes('-')) return new Date(d);
+    if (d.includes('/')) {
+      const [day, month, year] = d.split('/');
+      return new Date(`${year}-${month}-${day}`);
+    }
+    return new Date(d);
+  };
+  
+  let res = parseData(b.data) - parseData(a.data);
+  if (res === 0) res = (a.horario || '').localeCompare(b.horario || '');
+  if (res === 0) res = (a.nome || '').localeCompare(b.nome || '');
+  if (res === 0) res = (a.tipo || '').localeCompare(b.tipo || '');
+  return res;
 }
