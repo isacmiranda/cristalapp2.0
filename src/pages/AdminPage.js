@@ -58,6 +58,8 @@ export default function AdminPage() {
     registrosHoje: 0,
     ultimaAtualizacao: ''
   });
+  const [estaFiltrado, setEstaFiltrado] = useState(false);
+  const [resumo, setResumo] = useState({ entrada: 0, intervaloIda: 0, intervaloVolta: 0, saida: 0 });
 
   const navigate = useNavigate();
 
@@ -74,6 +76,24 @@ export default function AdminPage() {
       setStatusConexao('desconectado');
     }
   }, []);
+
+  const calcularResumo = (dados) => {
+    const contagem = {
+      entrada: 0,
+      intervaloIda: 0,
+      intervaloVolta: 0,
+      saida: 0
+    };
+
+    dados.forEach(registro => {
+      if (registro.tipo === 'entrada') contagem.entrada++;
+      else if (registro.tipo === 'intervalo ida') contagem.intervaloIda++;
+      else if (registro.tipo === 'intervalo volta') contagem.intervaloVolta++;
+      else if (registro.tipo === 'saida') contagem.saida++;
+    });
+
+    setResumo(contagem);
+  };
 
   const fetchDados = useCallback(async () => {
     try {
@@ -96,7 +116,11 @@ export default function AdminPage() {
       normalizedRegs.sort(multiSort);
       setFuncionarios(funcs);
       setTodosRegistros(normalizedRegs);
-      setRegistros(normalizedRegs);
+      
+      if (!estaFiltrado) {
+        setRegistros(normalizedRegs);
+        calcularResumo(normalizedRegs);
+      }
       
       const hoje = new Date().toLocaleDateString('pt-BR');
       const registrosHoje = regs.filter(r => r.data === hoje).length;
@@ -113,7 +137,7 @@ export default function AdminPage() {
       console.error('Erro fetchDados:', err);
       setStatusConexao('desconectado');
     }
-  }, []);
+  }, [estaFiltrado]);
 
   useEffect(() => {
     fetchDados();
@@ -138,6 +162,8 @@ export default function AdminPage() {
       })
       .sort(multiSort);
     setRegistros(filtrados);
+    calcularResumo(filtrados);
+    setEstaFiltrado(true);
     setPaginaAtual(1);
   };
 
@@ -147,6 +173,8 @@ export default function AdminPage() {
     setFiltroFim('');
     setFiltroNome('');
     setFiltroPIN('');
+    calcularResumo(todosRegistros);
+    setEstaFiltrado(false);
     setPaginaAtual(1);
   };
 
@@ -355,7 +383,7 @@ export default function AdminPage() {
     }
   };
 
-  // Função para gerar PDF da tabela
+  // Função para gerar PDF da tabela com resumo
   const gerarPDF = async () => {
     try {
       const html2canvas = (await import('html2canvas')).default;
@@ -367,25 +395,124 @@ export default function AdminPage() {
         return;
       }
       
+      // Criar um container com o mesmo conteúdo que aparece na impressão
+      const container = document.createElement('div');
+      container.style.padding = '20px';
+      container.style.backgroundColor = 'white';
+      container.style.color = 'black';
+      container.style.fontFamily = 'Arial, sans-serif';
+      container.style.width = '800px';
+      
+      // Título
+      const titulo = document.createElement('h1');
+      titulo.textContent = 'Registro de Ponto - Cristal Acquacenter';
+      titulo.style.textAlign = 'center';
+      titulo.style.marginBottom = '15px';
+      titulo.style.fontSize = '24px';
+      titulo.style.fontWeight = 'bold';
+      container.appendChild(titulo);
+      
+      // Informações
+      const info = document.createElement('div');
+      info.style.marginBottom = '15px';
+      info.style.fontSize = '14px';
+      info.style.textAlign = 'center';
+      
+      const dataGeracao = new Date().toLocaleDateString('pt-BR');
+      const horaGeracao = new Date().toLocaleTimeString('pt-BR');
+      
+      info.innerHTML = `
+        <div>Gerado em: ${dataGeracao} às ${horaGeracao}</div>
+        <div>Total de registros: ${registros.length}</div>
+        ${filtroInicio || filtroFim || filtroNome || filtroPIN ? 
+          `<div>Filtros aplicados: 
+            ${filtroInicio ? `De ${filtroInicio} ` : ''}
+            ${filtroFim ? `Até ${filtroFim} ` : ''}
+            ${filtroNome ? `Nome: ${filtroNome} ` : ''}
+            ${filtroPIN ? `PIN: ${filtroPIN}` : ''}
+          </div>` : ''
+        }
+      `;
+      container.appendChild(info);
+      
+      // Resumo
+      const resumoElement = document.createElement('div');
+      resumoElement.style.margin = '20px 0';
+      resumoElement.style.padding = '15px';
+      resumoElement.style.backgroundColor = '#f0f0f0';
+      resumoElement.style.borderRadius = '8px';
+      resumoElement.style.fontSize = '14px';
+      resumoElement.style.textAlign = 'center';
+      resumoElement.innerHTML = `
+        <strong style="font-size: 16px;">📊 Resumo do Período</strong><br><br>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 600px; margin: 0 auto;">
+          <div style="background: #d4edda; padding: 10px; border-radius: 4px;">
+            <strong>✅ Entradas:</strong> ${resumo.entrada}
+          </div>
+          <div style="background: #fff3cd; padding: 10px; border-radius: 4px;">
+            <strong>⏰ Início Intervalo:</strong> ${resumo.intervaloIda}
+          </div>
+          <div style="background: #d1ecf1; padding: 10px; border-radius: 4px;">
+            <strong>⏰ Retorno Intervalo:</strong> ${resumo.intervaloVolta}
+          </div>
+          <div style="background: #f8d7da; padding: 10px; border-radius: 4px;">
+            <strong>❌ Saídas:</strong> ${resumo.saida}
+          </div>
+        </div>
+        <div style="margin-top: 10px; font-weight: bold;">
+          Total de registros: ${registros.length}
+        </div>
+      `;
+      container.appendChild(resumoElement);
+      
+      // Clonar a tabela
       const tabelaClone = tabelaElement.cloneNode(true);
+      
+      // Remover botões de ação
       const botoesAcao = tabelaClone.querySelectorAll('.no-print');
       botoesAcao.forEach(botao => botao.remove());
       
+      // Aplicar estilos à tabela
       tabelaClone.style.width = '100%';
       tabelaClone.style.borderCollapse = 'collapse';
+      tabelaClone.style.marginTop = '20px';
       
-      const container = document.createElement('div');
-      container.style.position = 'absolute';
-      container.style.left = '-9999px';
-      container.style.width = '800px';
+      const thElements = tabelaClone.querySelectorAll('th');
+      thElements.forEach(th => {
+        th.style.backgroundColor = '#f0f0f0';
+        th.style.border = '1px solid #000';
+        th.style.padding = '10px';
+        th.style.fontWeight = 'bold';
+        th.style.textAlign = 'left';
+      });
+      
+      const tdElements = tabelaClone.querySelectorAll('td');
+      tdElements.forEach(td => {
+        td.style.border = '1px solid #000';
+        td.style.padding = '10px';
+        td.style.textAlign = 'left';
+      });
+      
       container.appendChild(tabelaClone);
+      
+      // Adicionar rodapé
+      const footer = document.createElement('div');
+      footer.style.marginTop = '20px';
+      footer.style.fontSize = '10px';
+      footer.style.textAlign = 'center';
+      footer.style.color = '#666';
+      footer.textContent = `Sistema de Ponto Cristal Acquacenter - Gerado em ${dataGeracao} às ${horaGeracao}`;
+      container.appendChild(footer);
+      
       document.body.appendChild(container);
       
-      const canvas = await html2canvas(tabelaClone, {
+      const canvas = await html2canvas(container, {
         scale: 2,
         backgroundColor: '#ffffff',
         useCORS: true,
-        logging: false
+        logging: false,
+        width: 800,
+        height: container.scrollHeight
       });
       
       document.body.removeChild(container);
@@ -394,36 +521,16 @@ export default function AdminPage() {
       const imgWidth = 280;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       
-      const titulo = 'Registro de Ponto - Cristal Acquacenter';
-      const dataGeracao = new Date().toLocaleDateString('pt-BR');
-      const horaGeracao = new Date().toLocaleTimeString('pt-BR');
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, 10, imgWidth, imgHeight);
       
-      pdf.setFontSize(16);
-      pdf.text(titulo, 10, 10);
-      
-      pdf.setFontSize(10);
-      pdf.text(`Gerado em: ${dataGeracao} às ${horaGeracao}`, 10, 17);
-      pdf.text(`Total de registros: ${registros.length}`, 10, 22);
-      
-      let filtrosTexto = 'Filtros: ';
-      if (filtroInicio) filtrosTexto += `De ${filtroInicio} `;
-      if (filtroFim) filtrosTexto += `Até ${filtroFim} `;
-      if (filtroNome) filtrosTexto += `Nome: ${filtroNome} `;
-      if (filtroPIN) filtrosTexto += `PIN: ${filtroPIN} `;
-      
-      if (filtrosTexto.length > 10) {
-        pdf.text(filtrosTexto, 10, 27);
-      }
-      
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, 35, imgWidth, imgHeight);
-      
+      // Adicionar número de páginas
       const totalPages = pdf.internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
         pdf.setFontSize(8);
         pdf.text(
-          `Página ${i} de ${totalPages} - Sistema de Ponto Cristal Acquacenter`,
-          10,
+          `Página ${i} de ${totalPages}`,
+          pdf.internal.pageSize.width - 30,
           pdf.internal.pageSize.height - 10
         );
       }
@@ -490,6 +597,35 @@ export default function AdminPage() {
       }
     `;
     
+    // Adicionar resumo para impressão
+    const resumoElement = document.createElement('div');
+    resumoElement.style.margin = '20px 0';
+    resumoElement.style.padding = '15px';
+    resumoElement.style.backgroundColor = '#f0f0f0';
+    resumoElement.style.borderRadius = '8px';
+    resumoElement.style.fontSize = '14px';
+    resumoElement.style.textAlign = 'center';
+    resumoElement.innerHTML = `
+      <strong style="font-size: 16px;">📊 Resumo do Período</strong><br><br>
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 600px; margin: 0 auto;">
+        <div style="background: #d4edda; padding: 10px; border-radius: 4px;">
+          <strong>✅ Entradas:</strong> ${resumo.entrada}
+        </div>
+        <div style="background: #fff3cd; padding: 10px; border-radius: 4px;">
+          <strong>⏰ Início Intervalo:</strong> ${resumo.intervaloIda}
+        </div>
+        <div style="background: #d1ecf1; padding: 10px; border-radius: 4px;">
+          <strong>⏰ Retorno Intervalo:</strong> ${resumo.intervaloVolta}
+        </div>
+        <div style="background: #f8d7da; padding: 10px; border-radius: 4px;">
+          <strong>❌ Saídas:</strong> ${resumo.saida}
+        </div>
+      </div>
+      <div style="margin-top: 10px; font-weight: bold;">
+        Total de registros: ${registros.length}
+      </div>
+    `;
+    
     // Adicionar estilos à tabela para impressão
     tabelaClone.style.width = '100%';
     tabelaClone.style.borderCollapse = 'collapse';
@@ -500,20 +636,32 @@ export default function AdminPage() {
     thElements.forEach(th => {
       th.style.backgroundColor = '#f0f0f0';
       th.style.border = '1px solid #000';
-      th.style.padding = '8px';
+      th.style.padding = '10px';
       th.style.fontWeight = 'bold';
+      th.style.textAlign = 'left';
     });
     
     const tdElements = tabelaClone.querySelectorAll('td');
     tdElements.forEach(td => {
       td.style.border = '1px solid #000';
-      td.style.padding = '8px';
+      td.style.padding = '10px';
+      td.style.textAlign = 'left';
     });
     
     // Montar o conteúdo para impressão
     printContainer.appendChild(titulo);
     printContainer.appendChild(info);
+    printContainer.appendChild(resumoElement);
     printContainer.appendChild(tabelaClone);
+    
+    // Adicionar rodapé
+    const footer = document.createElement('div');
+    footer.style.marginTop = '20px';
+    footer.style.fontSize = '10px';
+    footer.style.textAlign = 'center';
+    footer.style.color = '#666';
+    footer.textContent = `Sistema de Ponto Cristal Acquacenter - Gerado em ${dataGeracao} às ${horaGeracao}`;
+    printContainer.appendChild(footer);
     
     // Substituir o conteúdo da página
     document.body.innerHTML = printContainer.outerHTML;
@@ -650,6 +798,16 @@ export default function AdminPage() {
             font-weight: bold;
             margin-bottom: 10px;
           }
+          .resumo-print {
+            display: block !important;
+            background: #f0f0f0 !important;
+            padding: 10px !important;
+            margin: 10px 0 !important;
+            border-radius: 5px !important;
+          }
+        }
+        .resumo-print {
+          display: none;
         }
         
         .card-hover {
@@ -1029,6 +1187,30 @@ export default function AdminPage() {
                 <FaSync className="text-xl" />
                 <span className="hidden md:inline">Atualizar</span>
               </button>
+            </div>
+          </div>
+        </div>
+        
+        {/* Resumo visível apenas na impressão */}
+        <div className="resumo-print p-4 bg-gray-50 border-b border-gray-200">
+          <div className="bg-gray-100 p-4 rounded-lg">
+            <h3 className="font-bold text-lg mb-2 text-gray-700">📊 Resumo do Período</h3>
+            <div className="grid grid-cols-4 gap-4">
+              <div className="bg-green-100 p-2 rounded text-center">
+                <span className="font-bold text-green-800">✅ Entradas:</span> {resumo.entrada}
+              </div>
+              <div className="bg-yellow-100 p-2 rounded text-center">
+                <span className="font-bold text-yellow-800">⏰ Início Intervalo:</span> {resumo.intervaloIda}
+              </div>
+              <div className="bg-blue-100 p-2 rounded text-center">
+                <span className="font-bold text-blue-800">⏰ Retorno Intervalo:</span> {resumo.intervaloVolta}
+              </div>
+              <div className="bg-red-100 p-2 rounded text-center">
+                <span className="font-bold text-red-800">❌ Saídas:</span> {resumo.saida}
+              </div>
+            </div>
+            <div className="mt-2 text-center font-bold text-gray-700">
+              Total de registros: {registros.length}
             </div>
           </div>
         </div>
