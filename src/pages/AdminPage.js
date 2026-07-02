@@ -383,7 +383,7 @@ export default function AdminPage() {
     }
   };
 
-  // Função para gerar PDF da tabela com resumo
+  // Função para gerar PDF da tabela com resumo (apenas registros filtrados)
   const gerarPDF = async () => {
     try {
       const html2canvas = (await import('html2canvas')).default;
@@ -412,7 +412,7 @@ export default function AdminPage() {
       titulo.style.fontWeight = 'bold';
       container.appendChild(titulo);
       
-      // Informações
+      // Informações com período filtrado
       const info = document.createElement('div');
       info.style.marginBottom = '15px';
       info.style.fontSize = '14px';
@@ -421,21 +421,24 @@ export default function AdminPage() {
       const dataGeracao = new Date().toLocaleDateString('pt-BR');
       const horaGeracao = new Date().toLocaleTimeString('pt-BR');
       
+      // Mostrar informações do filtro
+      let filtroInfo = '';
+      if (filtroInicio || filtroFim || filtroNome || filtroPIN) {
+        filtroInfo = 'Filtros aplicados: ';
+        if (filtroInicio) filtroInfo += `De ${filtroInicio} `;
+        if (filtroFim) filtroInfo += `Até ${filtroFim} `;
+        if (filtroNome) filtroInfo += `Nome: ${filtroNome} `;
+        if (filtroPIN) filtroInfo += `PIN: ${filtroPIN}`;
+      }
+      
       info.innerHTML = `
         <div>Gerado em: ${dataGeracao} às ${horaGeracao}</div>
         <div>Total de registros: ${registros.length}</div>
-        ${filtroInicio || filtroFim || filtroNome || filtroPIN ? 
-          `<div>Filtros aplicados: 
-            ${filtroInicio ? `De ${filtroInicio} ` : ''}
-            ${filtroFim ? `Até ${filtroFim} ` : ''}
-            ${filtroNome ? `Nome: ${filtroNome} ` : ''}
-            ${filtroPIN ? `PIN: ${filtroPIN}` : ''}
-          </div>` : ''
-        }
+        ${filtroInfo ? `<div>${filtroInfo}</div>` : '<div>Todos os registros</div>'}
       `;
       container.appendChild(info);
       
-      // Resumo
+      // Resumo APENAS dos registros filtrados
       const resumoElement = document.createElement('div');
       resumoElement.style.margin = '20px 0';
       resumoElement.style.padding = '15px';
@@ -444,7 +447,7 @@ export default function AdminPage() {
       resumoElement.style.fontSize = '14px';
       resumoElement.style.textAlign = 'center';
       resumoElement.innerHTML = `
-        <strong style="font-size: 16px;">📊 Resumo do Período</strong><br><br>
+        <strong style="font-size: 16px;">📊 Resumo do Período ${filtroInfo ? 'Filtrado' : 'Total'}</strong><br><br>
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 600px; margin: 0 auto;">
           <div style="background: #d4edda; padding: 10px; border-radius: 4px;">
             <strong>✅ Entradas:</strong> ${resumo.entrada}
@@ -460,17 +463,21 @@ export default function AdminPage() {
           </div>
         </div>
         <div style="margin-top: 10px; font-weight: bold;">
-          Total de registros: ${registros.length}
+          Total de registros ${filtroInfo ? 'filtrados' : 'totais'}: ${registros.length}
         </div>
       `;
       container.appendChild(resumoElement);
       
-      // Clonar a tabela
+      // Clonar a tabela (que já contém apenas os registros filtrados)
       const tabelaClone = tabelaElement.cloneNode(true);
       
       // Remover botões de ação
       const botoesAcao = tabelaClone.querySelectorAll('.no-print');
       botoesAcao.forEach(botao => botao.remove());
+      
+      // Remover também o resumo-print se existir no clone
+      const resumoPrint = tabelaClone.querySelector('.resumo-print');
+      if (resumoPrint) resumoPrint.remove();
       
       // Aplicar estilos à tabela
       tabelaClone.style.width = '100%';
@@ -535,7 +542,11 @@ export default function AdminPage() {
         );
       }
       
-      pdf.save(`registro-ponto-cristal-${dataGeracao.replace(/\//g, '-')}.pdf`);
+      const nomeArquivo = filtroInicio || filtroFim || filtroNome || filtroPIN ? 
+        `registro-ponto-filtrado-${dataGeracao.replace(/\//g, '-')}.pdf` : 
+        `registro-ponto-completo-${dataGeracao.replace(/\//g, '-')}.pdf`;
+      
+      pdf.save(nomeArquivo);
       
       alert('✅ PDF gerado com sucesso!');
     } catch (error) {
@@ -584,17 +595,19 @@ export default function AdminPage() {
     const dataGeracao = new Date().toLocaleDateString('pt-BR');
     const horaGeracao = new Date().toLocaleTimeString('pt-BR');
     
+    let filtroInfo = '';
+    if (filtroInicio || filtroFim || filtroNome || filtroPIN) {
+      filtroInfo = 'Filtros aplicados: ';
+      if (filtroInicio) filtroInfo += `De ${filtroInicio} `;
+      if (filtroFim) filtroInfo += `Até ${filtroFim} `;
+      if (filtroNome) filtroInfo += `Nome: ${filtroNome} `;
+      if (filtroPIN) filtroInfo += `PIN: ${filtroPIN}`;
+    }
+    
     info.innerHTML = `
       <div>Gerado em: ${dataGeracao} às ${horaGeracao}</div>
       <div>Total de registros: ${registros.length}</div>
-      ${filtroInicio || filtroFim || filtroNome || filtroPIN ? 
-        `<div>Filtros aplicados: 
-          ${filtroInicio ? `De ${filtroInicio} ` : ''}
-          ${filtroFim ? `Até ${filtroFim} ` : ''}
-          ${filtroNome ? `Nome: ${filtroNome} ` : ''}
-          ${filtroPIN ? `PIN: ${filtroPIN}` : ''}
-        </div>` : ''
-      }
+      ${filtroInfo ? `<div>${filtroInfo}</div>` : '<div>Todos os registros</div>'}
     `;
     
     // Adicionar resumo para impressão
@@ -606,7 +619,7 @@ export default function AdminPage() {
     resumoElement.style.fontSize = '14px';
     resumoElement.style.textAlign = 'center';
     resumoElement.innerHTML = `
-      <strong style="font-size: 16px;">📊 Resumo do Período</strong><br><br>
+      <strong style="font-size: 16px;">📊 Resumo do Período ${filtroInfo ? 'Filtrado' : 'Total'}</strong><br><br>
       <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 600px; margin: 0 auto;">
         <div style="background: #d4edda; padding: 10px; border-radius: 4px;">
           <strong>✅ Entradas:</strong> ${resumo.entrada}
@@ -622,7 +635,7 @@ export default function AdminPage() {
         </div>
       </div>
       <div style="margin-top: 10px; font-weight: bold;">
-        Total de registros: ${registros.length}
+        Total de registros ${filtroInfo ? 'filtrados' : 'totais'}: ${registros.length}
       </div>
     `;
     
