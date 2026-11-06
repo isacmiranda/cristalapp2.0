@@ -1336,22 +1336,3 @@ function formatDisplayDate(d) {
   }
   return d;
 }
-
-// Função multiSort definida no escopo correto
-function multiSort(a, b) {
-  const parseData = d => {
-    if (!d) return new Date(0);
-    if (d.includes('-')) return new Date(d);
-    if (d.includes('/')) {
-      const [day, month, year] = d.split('/');
-      return new Date(`${year}-${month}-${day}`);
-    }
-    return new Date(d);
-  };
-  
-  let res = parseData(b.data) - parseData(a.data);
-  if (res === 0) res = (a.horario || '').localeCompare(b.horario || '');
-  if (res === 0) res = (a.nome || '').localeCompare(b.nome || '');
-  if (res === 0) res = (a.tipo || '').localeCompare(b.tipo || '');
-  return res;
-}
