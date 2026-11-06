@@ -407,7 +407,6 @@ export default function AdminPage() {
       container.style.left = '-9999px';
       container.style.width = '800px';
       
-      // Adicionar resumo ao container
       const resumoElement = document.createElement('div');
       resumoElement.style.padding = '10px';
       resumoElement.style.marginBottom = '20px';
@@ -473,7 +472,6 @@ export default function AdminPage() {
         pdf.text(filtrosTexto, 10, 27);
       }
       
-      // Adicionar resumo no PDF
       pdf.setFontSize(11);
       pdf.text('📊 Resumo do Período:', 10, 32);
       pdf.setFontSize(10);
@@ -511,21 +509,17 @@ export default function AdminPage() {
       return;
     }
     
-    // Criar um clone da tabela
     const tabelaClone = tabelaElement.cloneNode(true);
     
-    // Remover botões de ação
     const botoesAcao = tabelaClone.querySelectorAll('.no-print');
     botoesAcao.forEach(botao => botao.remove());
     
-    // Criar um container para impressão
     const printContainer = document.createElement('div');
     printContainer.style.padding = '20px';
     printContainer.style.backgroundColor = 'white';
     printContainer.style.color = 'black';
     printContainer.style.fontFamily = 'Arial, sans-serif';
     
-    // Adicionar título e informações
     const titulo = document.createElement('h1');
     titulo.textContent = 'Registro de Ponto - Cristal Acquacenter';
     titulo.style.textAlign = 'center';
@@ -554,7 +548,6 @@ export default function AdminPage() {
       }
     `;
     
-    // Adicionar resumo para impressão
     const resumoElement = document.createElement('div');
     resumoElement.style.margin = '20px 0';
     resumoElement.style.padding = '10px';
@@ -570,12 +563,10 @@ export default function AdminPage() {
       ❌ Saídas: ${resumo.saida}
     `;
     
-    // Adicionar estilos à tabela para impressão
     tabelaClone.style.width = '100%';
     tabelaClone.style.borderCollapse = 'collapse';
     tabelaClone.style.marginTop = '20px';
     
-    // Aplicar estilos às células
     const thElements = tabelaClone.querySelectorAll('th');
     thElements.forEach(th => {
       th.style.backgroundColor = '#f0f0f0';
@@ -590,42 +581,15 @@ export default function AdminPage() {
       td.style.padding = '8px';
     });
     
-    // Montar o conteúdo para impressão
     printContainer.appendChild(titulo);
     printContainer.appendChild(info);
     printContainer.appendChild(resumoElement);
     printContainer.appendChild(tabelaClone);
     
-    // Substituir o conteúdo da página
     document.body.innerHTML = printContainer.outerHTML;
-    
-    // Imprimir
     window.print();
-    
-    // Restaurar o conteúdo original
     document.body.innerHTML = conteudoOriginal;
-    
-    // Recarregar os eventos
     window.location.reload();
-  };
-
-  // Função de ordenação
-  const multiSort = (a, b) => {
-    const parseData = d => {
-      if (!d) return new Date(0);
-      if (d.includes('-')) return new Date(d);
-      if (d.includes('/')) {
-        const [day, month, year] = d.split('/');
-        return new Date(`${year}-${month}-${day}`);
-      }
-      return new Date(d);
-    };
-    
-    let res = parseData(b.data) - parseData(a.data);
-    if (res === 0) res = (a.horario || '').localeCompare(b.horario || '');
-    if (res === 0) res = (a.nome || '').localeCompare(b.nome || '');
-    if (res === 0) res = (a.tipo || '').localeCompare(b.tipo || '');
-    return res;
   };
 
   const ordenarPor = (campo) => {
@@ -758,7 +722,6 @@ export default function AdminPage() {
       <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-2xl shadow-lg p-4 md:p-6 mb-6 text-white">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-4">
-            {/* Logo da Cristal */}
             <div className="flex items-center gap-3">
               <img 
                 src="/logo.png" 
@@ -776,7 +739,6 @@ export default function AdminPage() {
           </div>
           
           <div className="flex items-center gap-4">
-            {/* Status */}
             <div className={`${getStatusColor()} text-white px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg`}>
               {getStatusIcon()}
               <span className="font-semibold">
@@ -796,7 +758,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Cards de Estatísticas - Coloridos */}
+      {/* Cards de Estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-5 card-hover text-white shadow-md">
           <div className="flex items-center justify-between">
@@ -1124,7 +1086,6 @@ export default function AdminPage() {
           </div>
         </div>
         
-        {/* Resumo visível apenas na impressão */}
         <div className="resumo-print p-4 bg-gray-50 border-b border-gray-200">
           <div className="bg-gray-100 p-4 rounded-lg">
             <h3 className="font-bold text-lg mb-2 text-gray-700">📊 Resumo do Período</h3>
@@ -1262,7 +1223,6 @@ export default function AdminPage() {
           </table>
         </div>
         
-        {/* Paginação */}
         {totalPaginas > 1 && (
           <div className="p-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="text-gray-600">
@@ -1328,6 +1288,28 @@ export default function AdminPage() {
 }
 
 // ---------- helpers ----------
+
+// Função de ordenação usada por fetchDados e handleBuscar.
+// Fica no escopo de módulo para ser uma referência estável (sem re-criação a cada render)
+// e satisfazer o ESLint (no-unused-vars / react-hooks/exhaustive-deps).
+function multiSort(a, b) {
+  const parseData = d => {
+    if (!d) return new Date(0);
+    if (d.includes('-')) return new Date(d);
+    if (d.includes('/')) {
+      const [day, month, year] = d.split('/');
+      return new Date(`${year}-${month}-${day}`);
+    }
+    return new Date(d);
+  };
+  
+  let res = parseData(b.data) - parseData(a.data);
+  if (res === 0) res = (a.horario || '').localeCompare(b.horario || '');
+  if (res === 0) res = (a.nome || '').localeCompare(b.nome || '');
+  if (res === 0) res = (a.tipo || '').localeCompare(b.tipo || '');
+  return res;
+}
+
 function formatDisplayDate(d) {
   if (!d) return '';
   if (d.includes('-')) {
