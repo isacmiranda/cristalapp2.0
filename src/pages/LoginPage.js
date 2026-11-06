@@ -11,7 +11,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
 
   const usuarioValido = 'admin';
-  const senhaValida = '@admin123';
+  const senhaValida = '@030509Admin';
 
   // Funções para status de conexão
   const getStatusColor = () => {
